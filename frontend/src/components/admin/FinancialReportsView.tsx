@@ -1,26 +1,20 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  BarChart3, FileSpreadsheet, FileText, Clock,
-  CheckCircle, AlertCircle, Activity, Layers, Zap,
-  RefreshCw, TrendingUp, Users, BellRing, Radio,
-  Laptop, ShieldCheck, Cpu, DollarSign, PieChart,
-  Trash2, Wrench, PackageX, Plus, Search, Check,
-  Edit3, X, Wallet, Gauge
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  DollarSign, TrendingUp, PieChart, Download, FileSpreadsheet, 
+  FileText, ArrowUpRight, ArrowDownRight, Layers, ShieldAlert, 
+  Clock, Zap, CheckCircle2, AlertCircle, X, Filter, RefreshCw,
+  Trash2, AlertTriangle, Cpu, Monitor, HardDrive, Wrench, PackageX,
+  Plus, Search, Check, Building, Receipt, Calendar, ArrowRight, ShieldCheck,
+  Smartphone, Laptop
 } from 'lucide-react';
 import apiClient from '@/lib/api-client';
 
-export interface LabPerformanceRecord {
-  labId: string;
-  labName: string;
-  totalPCs: number;
-  activePCs: number;
-  cpuAvgPct: number;
-  ramAvgPct: number;
-  openTickets: number;
-  healthStatus: 'HEALTHY' | 'WARNING' | 'CRITICAL';
+interface FinancialReportsViewProps {
+  campusName?: string;
+  onTriggerNotification?: (msg: string) => void;
 }
 
-export interface WriteOffItem {
+interface WriteOffItem {
   id: string;
   lab: string;
   name: string;
@@ -30,2379 +24,967 @@ export interface WriteOffItem {
   dateAdded: string;
 }
 
-export interface FinancialExpenseItem {
-  id: string;
-  title: string;
-  category: 'MAINTENANCE' | 'SOFTWARE' | 'INFRASTRUCTURE';
-  lab: string;
-  amount: number;
-  date: string;
-}
-
-export interface AnalyticsReportsViewProps {
-  campusName?: string;
-  onTriggerNotification?: (msg: string) => void;
-}
-
-export interface FinancialReportsViewProps {
-  campusName?: string;
-  onTriggerNotification?: (msg: string) => void;
-}
-
-// ============================================================================
-// SMART AUTO-DETECT PHILIPPINE MARKET PRICE & CATEGORY ENGINE (IN PHP ₱)
-// Works for both Hardware Write-Offs AND Financial Operational Expenses!
-// ============================================================================
-const estimateMarketPrice = (itemName: string): number => {
-  if (!itemName || !itemName.trim()) return 0;
-  const l = itemName.toLowerCase();
-
-  // 1. Maintenance & Servicing Keywords
-  if (l.includes('thermal paste') || l.includes('cleaning') || l.includes('dusting') || l.includes('sanitization')) {
-    if (l.includes('all') || l.includes('quarterly') || l.includes('full')) return 14500;
-    return 3500;
-  }
-  if (l.includes('reformat') || l.includes('os install') || l.includes('re-image') || l.includes('imaging')) {
-    return 4500;
-  }
-  if (l.includes('cable') || l.includes('rj45') || l.includes('cat6') || l.includes('keystone') || l.includes('patch cord')) {
-    return 4800;
-  }
-  if (l.includes('aircon') || l.includes('ac cleaning') || l.includes('hvac') || l.includes('freon')) {
-    return 8500;
-  }
-
-  // 2. Software, Licenses & Subscriptions
-  if (l.includes('windows 11') || l.includes('windows 10') || l.includes('microsoft 365') || l.includes('office 365')) {
-    return 28500;
-  }
-  if (l.includes('antivirus') || l.includes('kaspersky') || l.includes('bitdefender') || l.includes('crowdstrike')) {
-    return 18500;
-  }
-  if (l.includes('adobe') || l.includes('autocad') || l.includes('matlab') || l.includes('jetbrains') || l.includes('visual studio') || l.includes('license') || l.includes('subscription')) {
-    return 32000;
-  }
-
-  // 3. Apple iPhones & iOS Devices
-  if (l.includes('iphone') || l.includes('apple phone') || l.includes('ios phone')) {
-    if (l.includes('16 pro max')) return 84990;
-    if (l.includes('16 pro')) return 69990;
-    if (l.includes('16 plus')) return 62990;
-    if (l.includes('16')) return 54990;
-    if (l.includes('15 pro max')) return 75990;
-    if (l.includes('15 pro')) return 62990;
-    if (l.includes('15')) return 47990;
-    if (l.includes('14 pro max')) return 64990;
-    if (l.includes('14')) return 39990;
-    if (l.includes('13')) return 32990;
-    return 35990;
-  }
-
-  // 4. iPads & Tablets
-  if (l.includes('ipad') || l.includes('tablet') || l.includes('galaxy tab')) {
-    if (l.includes('ipad pro') || l.includes('tab s9 ultra')) return 62990;
-    if (l.includes('ipad air') || l.includes('tab s9')) return 41990;
-    return 22990;
-  }
-
-  // 5. Android Smartphones
-  if (
-    l.includes('samsung') ||
-    l.includes('galaxy') ||
-    l.includes('android') ||
-    l.includes('smartphone') ||
-    l.includes('xiaomi') ||
-    l.includes('realme') ||
-    l.includes('oppo') ||
-    l.includes('vivo')
-  ) {
-    if (l.includes('s24 ultra') || l.includes('z fold')) return 84900;
-    if (l.includes('s24')) return 53900;
-    if (l.includes('s23 ultra')) return 68900;
-    if (l.includes('a55') || l.includes('a54')) return 22500;
-    return 18500;
-  }
-
-  // 6. Graphics Cards / GPUs
-  if (
-    l.includes('gpu') ||
-    l.includes('graphics card') ||
-    l.includes('rtx') ||
-    l.includes('gtx') ||
-    l.includes('radeon') ||
-    l.includes('video card')
-  ) {
-    if (l.includes('4090') || l.includes('3090')) return 118000;
-    if (l.includes('4080') || l.includes('3080')) return 65000;
-    if (l.includes('4070 ti') || l.includes('4070 super')) return 44500;
-    if (l.includes('4070') || l.includes('3070')) return 37500;
-    if (l.includes('4060 ti') || l.includes('3060 ti')) return 24500;
-    if (l.includes('4060') || l.includes('3060') || l.includes('7600')) return 17800;
-    if (l.includes('1660') || l.includes('1650') || l.includes('rx 580')) return 8500;
-    return 17800;
-  }
-
-  // 7. Processors / CPUs
-  if (l.includes('cpu') || l.includes('processor') || l.includes('intel') || l.includes('ryzen')) {
-    if (l.includes('i9') || l.includes('ryzen 9')) return 34500;
-    if (l.includes('i7') || l.includes('ryzen 7')) return 21500;
-    if (l.includes('i5') || l.includes('ryzen 5')) return 11800;
-    if (l.includes('i3') || l.includes('ryzen 3')) return 5400;
-    return 11800;
-  }
-
-  // 8. MacBooks & Laptops
-  if (l.includes('macbook') || l.includes('laptop') || l.includes('notebook')) {
-    if (l.includes('macbook pro')) return 99990;
-    if (l.includes('macbook air')) return 64990;
-    if (l.includes('i7') || l.includes('ryzen 7')) return 54500;
-    return 38500;
-  }
-
-  // 9. Desktops & Workstations
-  if (
-    l.includes('workstation') ||
-    l.includes('system unit') ||
-    l.includes('desktop') ||
-    l.includes('computer unit') ||
-    l.includes('pc')
-  ) {
-    if (l.includes('server') || l.includes('xeon')) return 88000;
-    if (l.includes('i7') || l.includes('ryzen 7')) return 52000;
-    if (l.includes('i3') || l.includes('ryzen 3')) return 18500;
-    return 32000;
-  }
-
-  // 10. Monitors & Displays
-  if (l.includes('monitor') || l.includes('display') || l.includes('screen')) {
-    if (l.includes('4k') || l.includes('ultrawide') || l.includes('34')) return 32500;
-    if (l.includes('27') && (l.includes('144hz') || l.includes('165hz'))) return 13800;
-    if (l.includes('27')) return 9800;
-    if (l.includes('24')) return 7900;
-    return 6200;
-  }
-
-  // 11. Storage Drives (SSD & HDD)
-  if (l.includes('ssd') || l.includes('nvme') || l.includes('m.2') || l.includes('hdd') || l.includes('hard drive')) {
-    if (l.includes('2tb')) return 7800;
-    if (l.includes('1tb')) return 4200;
-    if (l.includes('500gb') || l.includes('512gb')) return 2350;
-    return 3500;
-  }
-
-  // 12. RAM / Memory
-  if (l.includes('ram') || l.includes('memory') || l.includes('ddr4') || l.includes('ddr5')) {
-    if (l.includes('64gb')) return 11800;
-    if (l.includes('32gb')) return 5900;
-    if (l.includes('16gb')) return 2850;
-    return 1850;
-  }
-
-  // 13. Motherboards, PSU, UPS, Networking
-  if (l.includes('motherboard') || l.includes('mobo') || l.includes('mainboard')) {
-    if (l.includes('z790') || l.includes('x670')) return 16500;
-    return 6800;
-  }
-  if (l.includes('psu') || l.includes('power supply') || l.includes('ups') || l.includes('avr')) {
-    if (l.includes('1000w') || l.includes('online ups')) return 11800;
-    if (l.includes('1500va')) return 10800;
-    if (l.includes('avr')) return 1650;
-    return 4800;
-  }
-  if (l.includes('switch') || l.includes('router') || l.includes('access point') || l.includes('firewall') || l.includes('vlan')) {
-    if (l.includes('48-port') || l.includes('firewall')) return 22500;
-    if (l.includes('24-port')) return 11500;
-    return 8500;
-  }
-  if (l.includes('keyboard') || l.includes('mouse') || l.includes('headset') || l.includes('webcam')) {
-    if (l.includes('mechanical')) return 2800;
-    return 950;
-  }
-
-  const hash = Array.from(itemName).reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return 3500 + (hash % 15) * 850;
-};
-
-// Auto-detects Financial Expense Category based on typed description
-const detectExpenseCategory = (title: string): FinancialExpenseItem['category'] => {
-  const l = (title || '').toLowerCase();
-  if (
-    l.includes('software') ||
-    l.includes('license') ||
-    l.includes('windows') ||
-    l.includes('office') ||
-    l.includes('adobe') ||
-    l.includes('antivirus') ||
-    l.includes('ide') ||
-    l.includes('cloud') ||
-    l.includes('subscription')
-  ) {
-    return 'SOFTWARE';
-  }
-  if (
-    l.includes('switch') ||
-    l.includes('router') ||
-    l.includes('vlan') ||
-    l.includes('firewall') ||
-    l.includes('server') ||
-    l.includes('rack') ||
-    l.includes('ups') ||
-    l.includes('network') ||
-    l.includes('cable') ||
-    l.includes('cat6')
-  ) {
-    return 'INFRASTRUCTURE';
-  }
-  return 'MAINTENANCE';
-};
-
-// Auto-detects Asset Tag Prefix based on typed hardware name
-const suggestAssetTagPrefix = (hardwareName: string, count: number): string => {
-  const l = (hardwareName || '').toLowerCase();
-  const num = String(count + 105).padStart(3, '0');
-  if (l.includes('monitor') || l.includes('display') || l.includes('screen')) return `MON-${num}`;
-  if (l.includes('rtx') || l.includes('gtx') || l.includes('gpu') || l.includes('graphics')) return `GPU-${num}`;
-  if (l.includes('ups') || l.includes('avr') || l.includes('psu')) return `PWR-${num}`;
-  if (l.includes('ram') || l.includes('ddr')) return `RAM-${num}`;
-  if (l.includes('ssd') || l.includes('nvme') || l.includes('hdd')) return `DRV-${num}`;
-  if (l.includes('switch') || l.includes('router')) return `NET-${num}`;
-  if (l.includes('iphone') || l.includes('ipad') || l.includes('galaxy')) return `MOB-${num}`;
-  return `PC-${num}`;
-};
-
-// ============================================================================
-// 3D ISOMETRIC TELEMETRY & FINANCIAL VAULT RIG ILLUSTRATION
-// ============================================================================
-const IsometricAnalyticsRig: React.FC<{
-  mode: 'TELEMETRY' | 'FINANCIAL' | 'SLA';
-  code: string;
-}> = ({ mode, code }) => {
-  const primaryHex = mode === 'TELEMETRY' ? '#38bdf8' : mode === 'FINANCIAL' ? '#10b981' : '#f59e0b';
-  const secondaryHex = mode === 'TELEMETRY' ? '#2563eb' : mode === 'FINANCIAL' ? '#059669' : '#d97706';
-  const gradId = `iso-ana-${mode}-${code}`;
-
-  return (
-    <div className="w-20 h-16 shrink-0">
-      <svg viewBox="0 0 140 115" className="w-full h-full drop-shadow-[0_8px_12px_rgba(15,23,42,0.45)]">
-        <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={primaryHex} stopOpacity="0.92" />
-            <stop offset="55%" stopColor={secondaryHex} stopOpacity="0.85" />
-            <stop offset="100%" stopColor="#020617" stopOpacity="0.95" />
-          </linearGradient>
-        </defs>
-
-        <polygon points="70,106 10,82 70,58 130,82" fill="#1e293b" stroke={primaryHex} strokeWidth="1.3" />
-        <polygon points="10,82 70,106 70,113 10,89" fill="#0f172a" />
-        <polygon points="130,82 70,106 70,113 130,89" fill="#020617" />
-
-        <g>
-          <polygon points="98,20 116,12 130,18 112,26" fill="#334155" stroke="#64748b" strokeWidth="0.8" />
-          <polygon points="98,20 112,26 112,74 98,68" fill="#020617" stroke={primaryHex} strokeWidth="1.2" />
-          <polygon points="112,26 130,18 130,66 112,74" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-          <ellipse
-            cx="105"
-            cy="39"
-            rx="4.2"
-            ry="6.5"
-            fill="none"
-            stroke={primaryHex}
-            strokeWidth="1.5"
-            strokeDasharray="3 2"
-            className="animate-spin"
-            style={{ transformOrigin: '105px 39px', animationDuration: '2.4s' }}
-          />
-          <ellipse
-            cx="105"
-            cy="56"
-            rx="4.2"
-            ry="6.5"
-            fill="none"
-            stroke={primaryHex}
-            strokeWidth="1.5"
-            strokeDasharray="3 2"
-            className="animate-spin"
-            style={{ transformOrigin: '105px 56px', animationDuration: '2.4s' }}
-          />
-          <line x1="121" y1="26" x2="121" y2="64" stroke={primaryHex} strokeWidth="2" strokeLinecap="round" />
-          <circle cx="121" cy="23" r="1.8" fill="#ffffff" />
-        </g>
-
-        <g>
-          <polygon points="52,78 68,72 78,76 62,82" fill="#475569" />
-          <polygon points="60,58 66,56 66,76 60,78" fill="#334155" />
-          <polygon points="22,22 84,8 88,11 26,25" fill="#475569" />
-          <polygon points="84,8 88,11 88,53 84,50" fill="#1e293b" />
-          <polygon points="22,22 84,8 84,52 22,66" fill="#0f172a" stroke="#94a3b8" strokeWidth="1.5" />
-          <polygon points="25,25 81,12 81,49 25,62" fill={`url(#${gradId})`} />
-          <line x1="30" y1="30" x2="54" y2="24" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" />
-          <line x1="30" y1="36" x2="68" y2="27" stroke="#e2e8f0" strokeWidth="1.6" strokeOpacity="0.8" strokeLinecap="round" />
-          <line x1="30" y1="41" x2="60" y2="34" stroke={primaryHex} strokeWidth="1.6" strokeLinecap="round" />
-          <text
-            x="53"
-            y="51"
-            textAnchor="middle"
-            fill="#ffffff"
-            fontSize="8.5"
-            fontWeight="900"
-            fontFamily="monospace"
-            transform="skewY(-12)"
-          >
-            {code}
-          </text>
-        </g>
-
-        <polygon points="32,82 74,68 82,73 40,87" fill="#0f172a" stroke={primaryHex} strokeWidth="1" />
-        <line x1="37" y1="82" x2="73" y2="70" stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="3 2" />
-        <ellipse cx="90" cy="74" rx="4.5" ry="3" fill="#0f172a" stroke={primaryHex} strokeWidth="1" />
-      </svg>
-    </div>
-  );
-};
-
-const DEFAULT_LAB_RECORDS: LabPerformanceRecord[] = [
-  {
-    labId: 'LAB-101',
-    labName: 'ComLab 1 (Networking & ICT)',
-    totalPCs: 45,
-    activePCs: 42,
-    cpuAvgPct: 38,
-    ramAvgPct: 62,
-    openTickets: 1,
-    healthStatus: 'HEALTHY'
-  },
-  {
-    labId: 'LAB-102',
-    labName: 'ComLab 2 (Multimedia & Graphics)',
-    totalPCs: 40,
-    activePCs: 36,
-    cpuAvgPct: 54,
-    ramAvgPct: 78,
-    openTickets: 2,
-    healthStatus: 'HEALTHY'
-  },
-  {
-    labId: 'LAB-103',
-    labName: 'ComLab 3 (AI & Software Eng)',
-    totalPCs: 50,
-    activePCs: 48,
-    cpuAvgPct: 68,
-    ramAvgPct: 82,
-    openTickets: 0,
-    healthStatus: 'HEALTHY'
-  }
-];
-
-const DEFAULT_WRITE_OFFS: WriteOffItem[] = [
-  {
-    id: 'MON-204',
-    lab: 'ComLab 1 (ICT)',
-    name: '27" 144Hz IPS Monitor',
-    issue: 'Burned backlight inverter & cracked LCD panel',
-    status: 'BEYOND REPAIR',
-    cost: 13800,
-    dateAdded: '2026-10-24'
-  },
-  {
-    id: 'GPU-109',
-    lab: 'ComLab 2 (Multimedia)',
-    name: 'NVIDIA RTX 4060 8GB Graphics Card',
-    issue: 'Shorted VRAM rail & artifacting under render load',
-    status: 'CONDEMNED',
-    cost: 17800,
-    dateAdded: '2026-10-26'
-  },
-  {
-    id: 'UPS-302',
-    lab: 'ComLab 3 (Engineering)',
-    name: '1500VA Line-Interactive UPS Backup',
-    issue: 'Swollen lead-acid battery cells & relay failure',
-    status: 'REPLACED',
-    cost: 10800,
-    dateAdded: '2026-10-28'
-  }
-];
-
-const DEFAULT_EXPENSES: FinancialExpenseItem[] = [
-  {
-    id: 'EXP-501',
-    title: 'Quarterly Preventive Thermal Servicing & Antistatic Cleaning',
-    category: 'MAINTENANCE',
-    lab: 'ComLab 1, 2 & 3',
-    amount: 14500,
-    date: '2026-10-20'
-  },
-  {
-    id: 'EXP-502',
-    title: 'RJ45 Cat6 Patch Cables & Keystone Jack Replacements',
-    category: 'MAINTENANCE',
-    lab: 'ComLab 2 (Multimedia)',
-    amount: 4800,
-    date: '2026-10-25'
-  },
-  {
-    id: 'EXP-503',
-    title: 'Campus IDE, Windows 11 Education & Cloud Sandbox Licenses',
-    category: 'SOFTWARE',
-    lab: 'All Laboratories',
-    amount: 28500,
-    date: '2026-10-15'
-  },
-  {
-    id: 'EXP-504',
-    title: 'Managed Gigabit VLAN Switch & Firewall Maintenance Subscription',
-    category: 'INFRASTRUCTURE',
-    lab: 'Server Room',
-    amount: 16500,
-    date: '2026-10-18'
-  }
-];
-
-const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-export const AnalyticsReportsView: React.FC<AnalyticsReportsViewProps> = ({
+export const FinancialReportsView: React.FC<FinancialReportsViewProps> = ({
   campusName = 'JRMSU Dapitan Main Campus',
   onTriggerNotification = () => {}
 }) => {
-  const activeCampus = campusName || 'JRMSU Dapitan Main Campus';
-
-  // Unified View Mode & Wave Speed Controls
-  const [commandTab, setCommandTab] = useState<'UNIFIED_ALL' | 'TELEMETRY_ONLY' | 'FINANCIAL_ONLY'>('UNIFIED_ALL');
+  // STREAM & FILTER STATES
   const [timeframe, setTimeframe] = useState<'LIVE' | '24H' | '7D' | '30D'>('LIVE');
-  const [selectedLab, setSelectedLab] = useState<string>('ALL');
-  const [isLiveStreaming, setIsLiveStreaming] = useState(true);
-  const [waveSpeed, setWaveSpeed] = useState<1 | 1.5 | 2>(1.5);
-  const [wavePhase, setWavePhase] = useState<number>(0);
-  const [isExporting, setIsExporting] = useState<'PDF' | 'CSV' | null>(null);
-  const [isLoadingApi, setIsLoadingApi] = useState(false);
-
-  // Real-Time System Telemetry Metrics
-  const [slaMetPct, setSlaMetPct] = useState(98.8);
-  const [responseTime, setResponseTime] = useState(1.6);
-  const [resolutionTime, setResolutionTime] = useState(2.2);
-  const [downtime, setDowntime] = useState(1.2);
-  const [userAccessCount, setUserAccessCount] = useState(142);
-
-  // Laboratory Breakdown Matrix (Persisted)
-  const [labRecords, setLabRecords] = useState<LabPerformanceRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem('labtrack_analytics_labs_v2');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return DEFAULT_LAB_RECORDS;
-  });
-
-  // Financial Budget & Ledger States (Persisted & 100% Accurate)
-  const [allocatedBudget, setAllocatedBudget] = useState<number>(() => {
-    try {
-      const saved = Number(localStorage.getItem('labtrack_allocated_budget_v2'));
-      if (!isNaN(saved) && saved > 0) return saved;
-    } catch {}
-    return 500000;
-  });
-
-  const [unrepairableAssets, setUnrepairableAssets] = useState<WriteOffItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('labtrack_writeoff_assets_v2');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return DEFAULT_WRITE_OFFS;
-  });
-
-  const [expenseRecords, setExpenseRecords] = useState<FinancialExpenseItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('labtrack_financial_expenses_v2');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return DEFAULT_EXPENSES;
-  });
-
-  const [auditLogs, setAuditLogs] = useState<Array<{ id: string; text: string; time: string; type: string }>>([
-    { id: 'AUD-901', text: 'Verified Q4 Laboratory Budget Allocation (₱500,000)', time: '08:00 AM', type: 'BUDGET' },
-    { id: 'AUD-902', text: 'Auto-valued Write-Off Asset GPU-109 at ₱17,800 (PH Market Rate)', time: '09:15 AM', type: 'WRITEOFF' },
-    { id: 'AUD-903', text: 'Synchronized ComLab 1–3 Telemetry & SLA Compliance (98.8%)', time: 'Just now', type: 'TELEMETRY' }
-  ]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('labtrack_allocated_budget_v2', String(allocatedBudget));
-    } catch {}
-  }, [allocatedBudget]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('labtrack_writeoff_assets_v2', JSON.stringify(unrepairableAssets));
-    } catch {}
-  }, [unrepairableAssets]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('labtrack_financial_expenses_v2', JSON.stringify(expenseRecords));
-    } catch {}
-  }, [expenseRecords]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('labtrack_analytics_labs_v2', JSON.stringify(labRecords));
-    } catch {}
-  }, [labRecords]);
-
-  // Search & Filter States for Financial Write-Offs
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [isExporting, setIsExporting] = useState<'PDF' | 'CSV' | null>(null);
 
-  // Modals States
-  const [isAddWriteOffOpen, setIsAddWriteOffOpen] = useState(false);
-  const [editingWriteOff, setEditingWriteOff] = useState<WriteOffItem | null>(null);
-  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
-  const [isEditBudgetOpen, setIsEditBudgetOpen] = useState(false);
-  const [editingLabRecord, setEditingLabRecord] = useState<LabPerformanceRecord | null>(null);
-
-  // Form States
+  // MODAL STATES
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newItem, setNewItem] = useState({
     id: '',
-    lab: 'ComLab 1 (ICT)',
+    lab: 'ComLab 1',
     name: '',
     issue: '',
-    status: 'BEYOND REPAIR' as WriteOffItem['status'],
-    customCost: ''
+    status: 'BEYOND REPAIR' as WriteOffItem['status']
   });
 
-  const [newExpense, setNewExpense] = useState({
-    title: '',
-    category: 'MAINTENANCE' as FinancialExpenseItem['category'],
-    lab: 'ComLab 1 (ICT)',
-    amount: 0,
-    isManualAmount: false
-  });
+  // DYNAMIC BUDGET & LEDGER METRICS
+  const [allocatedBudget, setAllocatedBudget] = useState(0);
+  const [maintenanceCost, setMaintenanceCost] = useState(0);
+  const [softwareCost, setSoftwareCost] = useState(0);
 
-  const [budgetInput, setBudgetInput] = useState<string>(String(allocatedBudget));
+  // UNREPAIRABLE ASSETS LEDGER DATA WITH EXACT PHILIPPINE RETAIL MARKET PRICING
+  const [unrepairableAssets, setUnrepairableAssets] = useState<WriteOffItem[]>([]);
 
-  // ============================================================================
-  // CONTINUOUS BUTTER-SMOOTH WAVE ENGINE (25 FPS TRIGONOMETRIC OSCILLATOR)
-  // Makes all 3 SVG wave charts flow like real liquid waves without CSS stutter!
-  // ============================================================================
-  useEffect(() => {
-    if (!isLiveStreaming) return;
-    const waveTimer = setInterval(() => {
-      setWavePhase(prev => (prev + 0.11 * waveSpeed) % (Math.PI * 200));
-    }, 40);
-    return () => clearInterval(waveTimer);
-  }, [isLiveStreaming, waveSpeed]);
+  // LIVE AUDIT LOG TRAIL
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  
+  // DYNAMIC: Fetch expenses para sa Financial Records
+  const [expenses, setExpenses] = useState<any[]>([]);
 
-  // Subtle realistic telemetry heartbeat for CPU/RAM bars every 2.2 seconds
-  useEffect(() => {
-    if (!isLiveStreaming) return;
-    const telemetryTimer = setInterval(() => {
-      setLabRecords(prev =>
-        prev.map((lab, idx) => {
-          const deltaCpu = Math.round(Math.sin(Date.now() / 1200 + idx) * 2);
-          const deltaRam = Math.round(Math.cos(Date.now() / 1500 + idx) * 1.5);
-          return {
-            ...lab,
-            cpuAvgPct: Math.min(95, Math.max(22, lab.cpuAvgPct + deltaCpu)),
-            ramAvgPct: Math.min(93, Math.max(35, lab.ramAvgPct + deltaRam))
-          };
-        })
-      );
-    }, 2200);
-    return () => clearInterval(telemetryTimer);
-  }, [isLiveStreaming]);
+  // FULL PHILIPPINE RETAIL DEVICE & HARDWARE MARKET PRICING ENGINE (IN PHP ₱)
+  const estimateMarketPrice = (hardwareName: string): number => {
+    if (!hardwareName.trim()) return 0;
+    const l = (hardwareName || "").toLowerCase();
 
-  // UNIFIED API FETCHING WITH SAFE FALLBACKS
-  const fetchAllAnalyticsAndFinancials = useCallback(async () => {
-    setIsLoadingApi(true);
-    try {
-      const [usageRes, usersRes, assetsRes, labsRes, finSumRes, finTxRes] = await Promise.all([
-        apiClient.get('/api/v1/analytics/usage').catch(() => null),
-        apiClient.get('/api/v1/users').catch(() => null),
-        apiClient.get('/api/v1/assets').catch(() => null),
-        apiClient.get('/api/v1/laboratories').catch(() => null),
-        apiClient.get('/api/v1/financials/summary').catch(() => null),
-        apiClient.get('/api/v1/financials/transactions').catch(() => null)
-      ]);
+    // 1. APPLE IPHONES & IOS DEVICES (PHILIPPINE SRP)
+    if (l.includes('iphone') || l.includes('apple phone') || l.includes('ios phone')) {
+      if (l.includes('16 pro max')) return 84990;
+      if (l.includes('16 pro')) return 69990;
+      if (l.includes('16 plus')) return 62990;
+      if (l.includes('16')) return 54990;
 
-      const u = usageRes?.data?.data || usageRes?.data;
-      if (u) {
-        if (typeof u.slaMetPct === 'number' && u.slaMetPct > 0) setSlaMetPct(u.slaMetPct);
-        if (typeof u.responseTime === 'number' && u.responseTime > 0) setResponseTime(u.responseTime);
-        if (typeof u.resolutionTime === 'number' && u.resolutionTime > 0) setResolutionTime(u.resolutionTime);
-      }
+      if (l.includes('15 pro max')) return 75990;
+      if (l.includes('15 pro')) return 62990;
+      if (l.includes('15 plus')) return 54990;
+      if (l.includes('15')) return 47990;
 
-      const users = usersRes?.data?.data?.items || usersRes?.data?.data || usersRes?.data;
-      if (Array.isArray(users) && users.length > 0) {
-        setUserAccessCount(Math.max(users.length * 12, 120));
-      }
+      if (l.includes('14 pro max')) return 64990;
+      if (l.includes('14 pro')) return 55990;
+      if (l.includes('14 plus')) return 45990;
+      if (l.includes('14')) return 39990;
 
-      const finSum = finSumRes?.data?.data || finSumRes?.data;
-      if (finSum && typeof finSum.totalAllocated === 'number' && finSum.totalAllocated > 0) {
-        setAllocatedBudget(finSum.totalAllocated);
-      }
+      if (l.includes('13 pro max')) return 52990;
+      if (l.includes('13 pro')) return 44990;
+      if (l.includes('13 mini')) return 28990;
+      if (l.includes('13')) return 32990;
 
-      const txs = finTxRes?.data?.data?.items || finTxRes?.data?.data || finTxRes?.data;
-      if (Array.isArray(txs) && txs.length > 0) {
-        const mappedExp: FinancialExpenseItem[] = txs.map((t: any, i: number) => {
-          const titleStr = t.description || t.title || 'Laboratory Operational Expense';
-          return {
-            id: t.id ? String(t.id) : `EXP-${600 + i}`,
-            title: titleStr,
-            category: detectExpenseCategory(t.category || titleStr),
-            lab: t.laboratoryName || 'ComLab 1 (ICT)',
-            amount: Number(t.amount) || estimateMarketPrice(titleStr),
-            date: t.date ? new Date(t.date).toISOString().split('T')[0] : '2026-10-28'
-          };
-        });
-        setExpenseRecords(mappedExp);
-      }
+      if (l.includes('12 pro max')) return 41990;
+      if (l.includes('12 pro')) return 35990;
+      if (l.includes('12 mini')) return 21990;
+      if (l.includes('12')) return 24990;
 
-      const labs = labsRes?.data?.data?.items || labsRes?.data?.data || labsRes?.data;
-      const assets = assetsRes?.data?.data?.items || assetsRes?.data?.data || assetsRes?.data;
+      if (l.includes('11 pro max')) return 31990;
+      if (l.includes('11 pro')) return 26990;
+      if (l.includes('11')) return 18990;
 
-      if (Array.isArray(assets) && assets.length > 0) {
-        const apiWriteOffs = assets
-          .filter((a: any) => {
-            const st = String(a.status || '').toUpperCase();
-            return st.includes('BEYOND') || st.includes('CONDEMNED') || st.includes('DISPOSED') || st.includes('UNREPAIR');
-          })
-          .map((a: any, idx: number) => {
-            const itemName = a.name || a.model || 'Laboratory Hardware Unit';
-            return {
-              id: a.assetTag || a.code || `AST-${201 + idx}`,
-              lab: a.laboratoryName || a.labRoom || 'ComLab 1 (ICT)',
-              name: itemName,
-              issue: a.description || a.issue || 'Beyond Economic Repair',
-              status: 'BEYOND REPAIR' as WriteOffItem['status'],
-              cost: Number(a.cost || a.purchasePrice) || estimateMarketPrice(itemName),
-              dateAdded: a.createdAtUtc ? new Date(a.createdAtUtc).toISOString().split('T')[0] : '2026-10-28'
-            };
-          });
-        if (apiWriteOffs.length > 0) {
-          setUnrepairableAssets(prev => {
-            const map = new Map<string, WriteOffItem>();
-            apiWriteOffs.forEach((w: WriteOffItem) => map.set(w.id, w));
-            prev.forEach(p => {
-              if (!map.has(p.id)) map.set(p.id, p);
-            });
-            return Array.from(map.values());
-          });
-        }
-      }
-
-      if (Array.isArray(labs) && labs.length > 0) {
-        const records: LabPerformanceRecord[] = labs.map((l: any, idx: number) => {
-          const labAssets = Array.isArray(assets) ? assets.filter((a: any) => a.laboratoryId === l.id) : [];
-          const total = labAssets.length || l.capacity || 45;
-          const active =
-            labAssets.filter(
-              (a: any) =>
-                String(a.status || '').toUpperCase() === 'OPERATIONAL' ||
-                String(a.status || '').toUpperCase() === 'ACTIVE'
-            ).length || Math.floor(total * 0.88);
-          const open = labAssets.filter((a: any) => String(a.status || '').toUpperCase().includes('MAINT')).length;
-
-          return {
-            labId: l.id || `LAB-${101 + idx}`,
-            labName: l.name || `ComLab ${idx + 1}`,
-            totalPCs: total,
-            activePCs: active,
-            cpuAvgPct: 38 + idx * 12,
-            ramAvgPct: 60 + idx * 10,
-            openTickets: open,
-            healthStatus: active / Math.max(1, total) >= 0.8 ? 'HEALTHY' : 'WARNING'
-          };
-        });
-        setLabRecords(records);
-      }
-    } catch {
-    } finally {
-      setIsLoadingApi(false);
+      if (l.includes('se') || l.includes('xr') || l.includes('xs')) return 14500;
+      return 35990;
     }
-  }, []);
 
-  useEffect(() => {
-    fetchAllAnalyticsAndFinancials();
-  }, [fetchAllAnalyticsAndFinancials]);
+    // 2. IPADS & TABLETS
+    if (l.includes('ipad') || l.includes('tablet') || l.includes('galaxy tab')) {
+      if (l.includes('ipad pro') || l.includes('tab s9 ultra')) return 62990;
+      if (l.includes('ipad air') || l.includes('tab s9')) return 41990;
+      if (l.includes('ipad mini')) return 32990;
+      if (l.includes('ipad 10') || l.includes('ipad 9')) return 22990;
+      return 18500;
+    }
 
-  // ============================================================================
-  // 100% ACCURATE MATHEMATICAL AGGREGATIONS
-  // ============================================================================
-  const filteredLabRecords = useMemo(() => {
-    if (selectedLab === 'ALL') return labRecords;
-    return labRecords.filter(l => l.labId === selectedLab || l.labName.includes(selectedLab));
-  }, [labRecords, selectedLab]);
+    // 3. ANDROID SMARTPHONES (SAMSUNG, XIAOMI, REALME, OPPO, VIVO)
+    if (l.includes('samsung') || l.includes('galaxy') || l.includes('android') || l.includes('smartphone') || l.includes('mobile') || l.includes('phone') || l.includes('xiaomi') || l.includes('realme') || l.includes('oppo') || l.includes('vivo')) {
+      if (l.includes('s24 ultra') || l.includes('z fold')) return 84900;
+      if (l.includes('s24+') || l.includes('s24 plus')) return 68900;
+      if (l.includes('s24')) return 53900;
+      if (l.includes('s23 ultra')) return 68900;
+      if (l.includes('s23')) return 38900;
+      if (l.includes('a55') || l.includes('a54') || l.includes('reno')) return 22500;
+      if (l.includes('a35') || l.includes('a15') || l.includes('redmi')) return 11500;
+      return 18500;
+    }
 
-  const telemetryTotals = useMemo(() => {
-    const list = filteredLabRecords.length > 0 ? filteredLabRecords : labRecords;
-    const totalPCs = list.reduce((acc, r) => acc + (Number(r.totalPCs) || 0), 0);
-    const activePCs = list.reduce((acc, r) => acc + (Number(r.activePCs) || 0), 0);
-    const openTickets = list.reduce((acc, r) => acc + (Number(r.openTickets) || 0), 0);
-    const avgCpu =
-      list.length > 0 ? Math.round(list.reduce((acc, r) => acc + (Number(r.cpuAvgPct) || 0), 0) / list.length) : 45;
-    const avgRam =
-      list.length > 0 ? Math.round(list.reduce((acc, r) => acc + (Number(r.ramAvgPct) || 0), 0) / list.length) : 64;
-    const occupancyPct = totalPCs > 0 ? Math.round((activePCs / totalPCs) * 100) : 92;
+    // 4. GRAPHICS CARDS / GPUs
+    if (l.includes('gpu') || l.includes('graphics card') || l.includes('rtx') || l.includes('gtx') || l.includes('radeon') || l.includes('video card') || l.includes('quadro')) {
+      if (l.includes('4090') || l.includes('3090') || l.includes('a6000')) return 118000;
+      if (l.includes('4080') || l.includes('3080') || l.includes('7900 xt')) return 65000;
+      if (l.includes('4070 ti') || l.includes('4070 super')) return 44500;
+      if (l.includes('4070') || l.includes('3070') || l.includes('7800 xt')) return 37500;
+      if (l.includes('4060 ti') || l.includes('3060 ti') || l.includes('6700 xt')) return 24500;
+      if (l.includes('4060') || l.includes('3060') || l.includes('7600') || l.includes('6600')) return 17800;
+      if (l.includes('1660') || l.includes('1650') || l.includes('rx 580') || l.includes('rx 570')) return 8500;
+      if (l.includes('1030') || l.includes('730') || l.includes('710')) return 3200;
+      return 17800;
+    }
 
-    return { totalPCs, activePCs, openTickets, avgCpu, avgRam, occupancyPct };
-  }, [filteredLabRecords, labRecords]);
+    // 5. PROCESSORS / CPUs
+    if (l.includes('cpu') || l.includes('processor') || l.includes('intel') || l.includes('ryzen')) {
+      if (l.includes('i9') || l.includes('ryzen 9') || l.includes('threadripper')) return 34500;
+      if (l.includes('i7') || l.includes('ryzen 7') || l.includes('7800x3d')) return 21500;
+      if (l.includes('i3') || l.includes('ryzen 3') || l.includes('pentium') || l.includes('celeron')) return 5400;
+      return 11800;
+    }
 
-  const maintenanceCost = useMemo(
-    () =>
-      expenseRecords
-        .filter(e => e.category === 'MAINTENANCE')
-        .reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
-    [expenseRecords]
-  );
+    // 6. MACBOOKS & LAPTOPS
+    if (l.includes('macbook') || l.includes('laptop') || l.includes('notebook')) {
+      if (l.includes('macbook pro m3 max') || l.includes('m2 max')) return 189990;
+      if (l.includes('macbook pro m3') || l.includes('macbook pro m2')) return 99990;
+      if (l.includes('macbook air m3') || l.includes('m2')) return 64990;
+      if (l.includes('macbook air m1')) return 44990;
+      if (l.includes('rtx 4070') || l.includes('rtx 4060 gaming')) return 78500;
+      if (l.includes('i7') || l.includes('ryzen 7')) return 54500;
+      if (l.includes('i3') || l.includes('chromebook')) return 21500;
+      return 38500;
+    }
 
-  const softwareAndInfraCost = useMemo(
-    () =>
-      expenseRecords
-        .filter(e => e.category === 'SOFTWARE' || e.category === 'INFRASTRUCTURE')
-        .reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
-    [expenseRecords]
-  );
+    // 7. DESKTOPS & WORKSTATIONS
+    if (l.includes('workstation') || l.includes('system unit') || l.includes('desktop') || l.includes('computer unit') || l.includes('pc unit') || l.includes('pc')) {
+      if (l.includes('server') || l.includes('xeon') || l.includes('threadripper') || l.includes('cad') || l.includes('rendering')) return 88000;
+      if (l.includes('i7') || l.includes('ryzen 7')) return 52000;
+      if (l.includes('i3') || l.includes('ryzen 3') || l.includes('office')) return 18500;
+      return 32000;
+    }
 
-  const totalWriteOffCost = useMemo(
-    () => unrepairableAssets.reduce((sum, item) => sum + (Number(item.cost) || 0), 0),
-    [unrepairableAssets]
-  );
+    // 8. MONITORS & DISPLAYS
+    if (l.includes('monitor') || l.includes('display') || l.includes('screen') || l.includes('tv') || l.includes('panel')) {
+      if (l.includes('oled') || l.includes('4k') || l.includes('ultrawide') || l.includes('34')) return 32500;
+      if (l.includes('27') && (l.includes('144hz') || l.includes('165hz') || l.includes('180hz') || l.includes('240hz'))) return 13800;
+      if (l.includes('27')) return 9800;
+      if (l.includes('24') && (l.includes('144hz') || l.includes('165hz') || l.includes('gaming'))) return 8900;
+      if (l.includes('21.5') || l.includes('19') || l.includes('18.5') || l.includes('20')) return 3800;
+      return 6200;
+    }
 
-  const totalSpent = useMemo(
-    () => maintenanceCost + softwareAndInfraCost + totalWriteOffCost,
-    [maintenanceCost, softwareAndInfraCost, totalWriteOffCost]
-  );
+    // 9. STORAGE DRIVES (SSD & HDD)
+    if (l.includes('ssd') || l.includes('nvme') || l.includes('m.2') || l.includes('sata ssd')) {
+      if (l.includes('4tb')) return 17500;
+      if (l.includes('2tb')) return 7800;
+      if (l.includes('500gb') || l.includes('512gb') || l.includes('480gb')) return 2350;
+      if (l.includes('256gb') || l.includes('240gb') || l.includes('120gb') || l.includes('128gb')) return 1250;
+      return 3950;
+    }
 
-  const remainingBudget = useMemo(
-    () => Math.max(0, allocatedBudget - totalSpent),
-    [allocatedBudget, totalSpent]
-  );
+    if (l.includes('hdd') || l.includes('hard drive') || l.includes('harddisk') || l.includes('surveillance')) {
+      if (l.includes('8tb') || l.includes('10tb')) return 13500;
+      if (l.includes('4tb')) return 6200;
+      return 2850;
+    }
 
-  const spentPercentage = useMemo(() => {
-    if (!allocatedBudget || allocatedBudget <= 0) return 0;
-    return Math.min(100, +((totalSpent / allocatedBudget) * 100).toFixed(1));
-  }, [allocatedBudget, totalSpent]);
+    // 10. RAM / MEMORY
+    if (l.includes('ram') || l.includes('memory') || l.includes('ddr4') || l.includes('ddr5') || l.includes('dimm')) {
+      if (l.includes('64gb') || l.includes('128gb')) return 11800;
+      if (l.includes('32gb')) return 5900;
+      if (l.includes('8gb')) return 1250;
+      if (l.includes('4gb')) return 720;
+      return 2850;
+    }
 
-  const filteredAssets = useMemo(() => {
-    return unrepairableAssets.filter(asset => {
-      const q = (searchQuery || '').toLowerCase();
-      const matchesSearch =
-        !q ||
-        (asset.id || '').toLowerCase().includes(q) ||
-        (asset.name || '').toLowerCase().includes(q) ||
-        (asset.lab || '').toLowerCase().includes(q) ||
-        (asset.issue || '').toLowerCase().includes(q);
-      const matchesStatus = statusFilter === 'ALL' || asset.status === statusFilter;
-      const matchesSelectedLab =
-        selectedLab === 'ALL' ||
-        (asset.lab || '').toLowerCase().includes(selectedLab.toLowerCase()) ||
-        filteredLabRecords.some(l => asset.lab.toLowerCase().includes(l.labName.split('(')[0].trim().toLowerCase()));
-      return matchesSearch && matchesStatus && matchesSelectedLab;
-    });
-  }, [unrepairableAssets, searchQuery, statusFilter, selectedLab, filteredLabRecords]);
+    // 11. MOTHERBOARDS
+    if (l.includes('motherboard') || l.includes('mobo') || l.includes('mainboard')) {
+      if (l.includes('z790') || l.includes('x670') || l.includes('z690') || l.includes('server')) return 16500;
+      if (l.includes('h610') || l.includes('a520') || l.includes('a320') || l.includes('h310')) return 3850;
+      return 6800;
+    }
 
-  // ============================================================================
-  // REAL-TIME FLOWING WAVE GENERATORS (ANCHORED TO ACTUAL TELEMETRY & FINANCIALS)
-  // ============================================================================
-  const accessWavePoints = useMemo(() => {
-    const baseOcc = Math.min(82, Math.max(35, telemetryTotals.occupancyPct * 0.72));
-    return Array.from({ length: 12 }, (_, i) => {
-      const x = (i / 11) * 300;
-      const wave1 = Math.sin(i * 0.65 - wavePhase) * 14;
-      const wave2 = Math.cos(i * 1.15 - wavePhase * 1.3) * 6;
-      const yVal = Math.min(95, Math.max(12, baseOcc + wave1 + wave2));
-      return { x, y: 100 - (yVal / 100) * 82 - 6 };
-    });
-  }, [wavePhase, telemetryTotals.occupancyPct]);
+    // 12. POWER SUPPLY & UPS / AVR
+    if (l.includes('psu') || l.includes('power supply')) {
+      if (l.includes('1000w') || l.includes('1200w') || l.includes('platinum')) return 11800;
+      if (l.includes('750w') || l.includes('850w') || l.includes('gold')) return 5900;
+      if (l.includes('generic')) return 850;
+      return 3200;
+    }
 
-  const mttrWavePoints = useMemo(() => {
-    const baseCpu = Math.min(80, Math.max(30, telemetryTotals.avgCpu));
-    return DAYS_OF_WEEK.map((day, i) => {
-      const x = (i / 6) * 300;
-      const v1 = Math.min(
-        94,
-        Math.max(18, baseCpu + Math.sin(i * 0.85 - wavePhase * 1.1) * 16 + Math.cos(i * 0.5 + wavePhase) * 6)
-      );
-      const v2 = Math.min(
-        88,
-        Math.max(14, baseCpu * 0.78 + Math.cos(i * 0.8 - wavePhase * 0.9) * 14)
-      );
-      return {
-        day,
-        x,
-        y1: 110 - (v1 / 100) * 88 - 8,
-        y2: 110 - (v2 / 100) * 88 - 8
-      };
-    });
-  }, [wavePhase, telemetryTotals.avgCpu]);
+    if (l.includes('ups') || l.includes('backup battery') || l.includes('power backup') || l.includes('avr')) {
+      if (l.includes('3000va') || l.includes('online ups') || l.includes('rackmount')) return 32500;
+      if (l.includes('2000va')) return 14500;
+      if (l.includes('1500va')) return 10800;
+      if (l.includes('1000va') || l.includes('1200va')) return 5200;
+      if (l.includes('650va') || l.includes('600va')) return 2250;
+      if (l.includes('avr') || l.includes('servo')) return 1650;
+      return 5200;
+    }
 
-  const financialFlowPoints = useMemo(() => {
-    const baseRatio = Math.min(78, Math.max(28, spentPercentage + 18));
-    return Array.from({ length: 12 }, (_, i) => {
-      const x = (i / 11) * 300;
-      const l1Val = Math.min(
-        94,
-        Math.max(18, baseRatio + Math.sin(i * 0.6 - wavePhase * 0.95) * 15 + Math.cos(i * 0.9 - wavePhase) * 5)
-      );
-      const l2Val = Math.min(
-        86,
-        Math.max(12, baseRatio * 0.75 + Math.cos(i * 0.7 - wavePhase * 1.15) * 13)
-      );
-      return {
-        x,
-        y1: 110 - (l1Val / 100) * 88 - 8,
-        y2: 110 - (l2Val / 100) * 88 - 8
-      };
-    });
-  }, [wavePhase, spentPercentage]);
+    // 13. NETWORKING & INFRASTRUCTURE
+    if (l.includes('switch') || l.includes('router') || l.includes('access point') || l.includes('firewall') || l.includes('hub')) {
+      if (l.includes('48-port') || l.includes('core switch') || l.includes('poe 48')) return 22500;
+      if (l.includes('24-port')) return 11500;
+      if (l.includes('8-port') || l.includes('5-port')) return 1150;
+      if (l.includes('access point') || l.includes('wifi 6')) return 8500;
+      if (l.includes('firewall') || l.includes('gateway')) return 19500;
+      return 11500;
+    }
 
-  const buildSmoothCurveFromCoords = (pts: Array<{ x: number; y: number }>) => {
-    if (!pts || pts.length === 0) return 'M 0,50 L 300,50';
-    return pts.reduce((acc, curr, i, a) => {
-      if (i === 0) return `M ${curr.x.toFixed(1)},${curr.y.toFixed(1)}`;
-      const prev = a[i - 1];
-      const cx = ((prev.x + curr.x) / 2).toFixed(1);
-      return `${acc} C ${cx},${prev.y.toFixed(1)} ${cx},${curr.y.toFixed(1)} ${curr.x.toFixed(1)},${curr.y.toFixed(1)}`;
-    }, '');
+    // 14. PRINTERS, PROJECTORS & OTHER HARDWARE
+    if (l.includes('projector') || l.includes('interactive') || l.includes('smartboard')) return 24500;
+    if (l.includes('printer') || l.includes('scanner')) {
+      if (l.includes('laser') || l.includes('heavy duty')) return 16500;
+      return 9500;
+    }
+
+    if (l.includes('keyboard') || l.includes('mouse') || l.includes('headset') || l.includes('webcam') || l.includes('speaker')) {
+      if (l.includes('mechanical') || l.includes('4k webcam')) return 3200;
+      return 950;
+    }
+
+    // DYNAMIC CHARACTER-HASH CALCULATION FOR UNLISTED CUSTOM EQUIPMENT (NO DUPES)
+    const hash = Array.from(hardwareName).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return 4500 + (hash % 24) * 1250;
   };
 
-  const accessLinePath = useMemo(() => buildSmoothCurveFromCoords(accessWavePoints), [accessWavePoints]);
-  const accessAreaPath = useMemo(() => `${accessLinePath} L 300,100 L 0,100 Z`, [accessLinePath]);
+  // DYNAMIC WAVE POINTS
+  const [wavePoints, setWavePoints] = useState<any[]>([]);
 
-  const mttrLine1Path = useMemo(
-    () => buildSmoothCurveFromCoords(mttrWavePoints.map(p => ({ x: p.x, y: p.y1 }))),
-    [mttrWavePoints]
-  );
-  const mttrLine2Path = useMemo(
-    () => buildSmoothCurveFromCoords(mttrWavePoints.map(p => ({ x: p.x, y: p.y2 }))),
-    [mttrWavePoints]
-  );
+  // REAL-TIME ANIMATION TICKER
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setWavePoints(prev => prev.map((p, idx) => {
+        if (idx === 0) return p;
+        return {
+          ...p,
+          l1: Math.min(98, Math.max(15, p.l1 + (Math.random() - 0.49) * 16)),
+          l2: Math.min(85, Math.max(10, p.l2 + (Math.random() - 0.49) * 14))
+        };
+      }));
 
-  const finLine1Path = useMemo(
-    () => buildSmoothCurveFromCoords(financialFlowPoints.map(p => ({ x: p.x, y: p.y1 }))),
-    [financialFlowPoints]
-  );
-  const finArea1Path = useMemo(() => `${finLine1Path} L 300,110 L 0,110 Z`, [finLine1Path]);
+      setMaintenanceCost(prev => Math.min(7500, Math.max(3500, prev + Math.floor((Math.random() - 0.5) * 35))));
+    }, 300);
 
-  const finLine2Path = useMemo(
-    () => buildSmoothCurveFromCoords(financialFlowPoints.map(p => ({ x: p.x, y: p.y2 }))),
-    [financialFlowPoints]
-  );
-  const finArea2Path = useMemo(() => `${finLine2Path} L 300,110 L 0,110 Z`, [finLine2Path]);
+    return () => clearInterval(interval);
+  }, []);
 
-  // ============================================================================
-  // CRUD HANDLERS (AUTO-DETECT MARKET PRICE FOR BOTH WRITE-OFFS & EXPENSES)
-  // ============================================================================
-  const handleAddWriteOffItem = (e: React.FormEvent) => {
+  // DYNAMIC: Fetch financial from backend
+  useEffect(() => {
+    apiClient.get('/api/v1/financials/summary').then((res: any) => {
+      const s = res?.data?.data || res?.data;
+      if (s) {
+        if (typeof s.totalAllocated === 'number') setAllocatedBudget(s.totalAllocated);
+        if (typeof s.totalSpent === 'number') setMaintenanceCost(s.totalSpent);
+        console.log('[Financial] Loaded summary:', s);
+      }
+    }).catch((e: any) => console.warn('[Financial] Fetch failed:', e));
+  }, []);
+  // DYNAMIC FETCH: Assets, Audit Logs, Financial Expenses
+  useEffect(() => {
+    Promise.all([
+      apiClient.get('/api/v1/assets').catch(() => null),
+      apiClient.get('/api/v1/audit-logs').catch(() => null),
+      apiClient.get('/api/v1/financials/transactions').catch(() => null)
+    ]).then(([assetsRes, logsRes, expRes]) => {
+      // 1. Setup Unrepairable Assets
+      const assets = assetsRes?.data?.data || assetsRes?.data;
+      if (Array.isArray(assets)) {
+        const writeOffs = assets.filter((a: any) => 
+          a.status === 'BEYOND_REPAIR' || a.status === 'CONDEMNED' || a.status === 'DISPOSED'
+        ).map((a: any) => ({
+          id: a.id || a.assetTag || 'UNKNOWN',
+          lab: a.laboratoryName || a.labRoom || 'Unknown Lab',
+          name: a.name || a.model || 'Hardware',
+          issue: a.issue || a.description || 'Unrepairable',
+          status: a.status || 'BEYOND REPAIR',
+          cost: Number(a.cost || a.purchasePrice || 0),
+          dateAdded: a.createdAtUtc ? new Date(a.createdAtUtc).toLocaleDateString() : 'N/A'
+        }));
+        setUnrepairableAssets(writeOffs);
+      }
+
+      // 2. Setup Audit Logs
+      const logs = logsRes?.data?.data || logsRes?.data;
+      if (Array.isArray(logs)) {
+        setAuditLogs(logs.slice(0, 10).map((l: any) => ({
+          id: l.id ? l.id.substring(0, 8) : 'LOG',
+          text: l.action || l.description || 'System activity',
+          time: l.timestampUtc ? new Date(l.timestampUtc).toLocaleTimeString() : 'Just now',
+          type: l.type || 'INFO'
+        })));
+      }
+
+      // 3. Setup Financial Expenses (para sa listahan sa baba)
+      const exps = expRes?.data?.data || expRes?.data;
+      if (Array.isArray(exps) && exps.length > 0) {
+        setExpenses(exps);
+        // Auto-sum ang maintenance at software costs kung may data
+        const totalMaint = exps.filter((e: any) => e.category === 'MAINTENANCE' || e.category === 'Repair').reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0);
+        const totalSW = exps.filter((e: any) => e.category === 'SOFTWARE' || e.category === 'License').reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0);
+        if (totalMaint > 0) setMaintenanceCost(totalMaint);
+        if (totalSW > 0) setSoftwareCost(totalSW);
+      }
+    }).catch(err => console.warn('[Financial] API Error:', err));
+  }, []);
+  // DYNAMIC: Fetch all financial data
+  useEffect(() => {
+    Promise.all([
+      apiClient.get('/api/v1/financials/summary').catch(() => null),
+      apiClient.get('/api/v1/financials/transactions').catch(() => null),
+      apiClient.get('/api/v1/assets').catch(() => null),
+      apiClient.get('/api/v1/audit-logs').catch(() => null)
+    ]).then(([summaryRes, txRes, assetsRes, logsRes]) => {
+      // Summary â†’ budget
+      const s = summaryRes?.data?.data || summaryRes?.data;
+      if (s) {
+        if (typeof s.totalAllocated === 'number') setAllocatedBudget(s.totalAllocated);
+        if (typeof s.totalSpent === 'number') setMaintenanceCost(s.totalSpent);
+      }
+
+      // Transactions â†’ expenses
+      const txs = txRes?.data?.data || txRes?.data;
+      if (Array.isArray(txs) && txs.length > 0) {
+        const maint = txs.filter((t: any) => 
+          (t.category || '').toUpperCase().includes('MAINT') || 
+          (t.category || '').toUpperCase().includes('REPAIR')
+        ).reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+        const sw = txs.filter((t: any) => 
+          (t.category || '').toUpperCase().includes('SOFT') ||
+          (t.category || '').toUpperCase().includes('LICENS')
+        ).reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+        if (maint > 0) setMaintenanceCost(maint);
+        if (sw > 0) setSoftwareCost(sw);
+      }
+
+      // Assets â†’ unrepairable
+      const assets = assetsRes?.data?.data || assetsRes?.data;
+      if (Array.isArray(assets)) {
+        const writeOffs = assets.filter((a: any) => {
+          const st = (a.status || '').toUpperCase();
+          return st.includes('BEYOND') || st.includes('CONDEMNED') || st.includes('DISPOSED') || st.includes('UNREPAIR');
+        }).map((a: any) => ({
+          id: a.id || a.assetTag || 'N/A',
+          lab: a.laboratoryName || a.labRoom || 'N/A',
+          name: a.name || a.model || 'Hardware',
+          issue: a.description || a.issue || 'Unrepairable',
+          status: 'BEYOND REPAIR' as WriteOffItem['status'],
+          cost: Number(a.cost || a.purchasePrice || 0),
+          dateAdded: a.createdAtUtc ? new Date(a.createdAtUtc).toLocaleDateString() : 'N/A'
+        }));
+        setUnrepairableAssets(writeOffs);
+      }
+
+      // Logs â†’ audit
+      const logs = logsRes?.data?.data || logsRes?.data;
+      if (Array.isArray(logs)) {
+        setAuditLogs(logs.slice(0, 10).map((l: any) => ({
+          id: (l.id || '').substring(0, 8) || 'LOG',
+          text: l.action || l.description || 'System activity',
+          time: l.timestampUtc ? new Date(l.timestampUtc).toLocaleString() : 'Just now',
+          type: l.type || 'INFO'
+        })));
+      }
+    }).catch((e: any) => console.warn('[Financial] Fetch error:', e));
+
+    // Animation loop
+    const interval = setInterval(() => {
+      setWavePoints(prev => {
+        if (prev.length === 0) {
+          return Array.from({ length: 9 }, (_, i) => ({
+            x: i * 37.5,
+            l1: 20 + Math.random() * 60,
+            l2: 15 + Math.random() * 50
+          }));
+        }
+        return prev.map(p => ({
+          ...p,
+          l1: Math.min(98, Math.max(15, p.l1 + (Math.random() - 0.5) * 16)),
+          l2: Math.min(85, Math.max(10, p.l2 + (Math.random() - 0.5) * 14))
+        }));
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+  // CALCULATED METRICS
+  const totalWriteOffCost = useMemo(() => {
+    return unrepairableAssets.reduce((sum, item) => sum + item.cost, 0);
+  }, [unrepairableAssets]);
+
+  const totalSpent = useMemo(() => {
+    return maintenanceCost + softwareCost + totalWriteOffCost;
+  }, [maintenanceCost, softwareCost, totalWriteOffCost]);
+
+  const remainingBudget = Math.max(0, allocatedBudget - totalSpent);
+  const spentPercentage = Math.min(100, Math.round((totalSpent / allocatedBudget) * 100));
+
+  // FILTERED ASSETS LIST
+  const filteredAssets = useMemo(() => {
+    return unrepairableAssets.filter(asset => {
+      const matchesSearch = (asset.id || "").toLowerCase().includes((searchQuery || "").toLowerCase()) ||
+                            (asset.name || "").toLowerCase().includes((searchQuery || "").toLowerCase()) ||
+                            (asset.lab || "").toLowerCase().includes((searchQuery || "").toLowerCase()) ||
+                            (asset.issue || "").toLowerCase().includes((searchQuery || "").toLowerCase());
+      const matchesStatus = statusFilter === 'ALL' || asset.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [unrepairableAssets, searchQuery, statusFilter]);
+
+  // HANDLER FOR ADDING ITEM (AUTOMATED VALUATION ENGINE)
+  const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItem.name.trim() || !newItem.lab.trim()) {
-      onTriggerNotification('Please complete Hardware Name and Laboratory Location.');
+    if (!newItem.id || !newItem.name || !newItem.lab) {
+      onTriggerNotification('Paki-punan ang lahat ng kinakailangang impormasyon!');
       return;
     }
 
-    const autoValuedCost = estimateMarketPrice(newItem.name);
-    const finalCost =
-      newItem.customCost && Number(newItem.customCost) > 0 ? Number(newItem.customCost) : autoValuedCost;
-    const autoId = newItem.id.trim()
-      ? newItem.id.trim().toUpperCase()
-      : suggestAssetTagPrefix(newItem.name, unrepairableAssets.length);
+    const calculatedCost = estimateMarketPrice(newItem.name);
 
     const created: WriteOffItem = {
-      id: autoId,
+      id: newItem.id.toUpperCase(),
       lab: newItem.lab.trim(),
       name: newItem.name.trim(),
       issue: newItem.issue.trim() || 'Beyond Economic Repair',
       status: newItem.status,
-      cost: finalCost,
+      cost: calculatedCost,
       dateAdded: new Date().toISOString().split('T')[0]
     };
 
     setUnrepairableAssets(prev => [created, ...prev]);
-    setIsAddWriteOffOpen(false);
-    setNewItem({ id: '', lab: 'ComLab 1 (ICT)', name: '', issue: '', status: 'BEYOND REPAIR', customCost: '' });
+    setIsAddModalOpen(false);
+    setNewItem({ id: '', lab: 'ComLab 1', name: '', issue: '', status: 'BEYOND REPAIR' });
+    onTriggerNotification(`Naidagdag ang ${created.id} sa ledger na may auto-verified market value na ₱${created.cost.toLocaleString()}!`);
 
+    // Add audit log
     setAuditLogs(prev => [
-      {
-        id: `AUD-${Math.floor(100 + Math.random() * 899)}`,
-        text: `Added Write-Off Asset ${created.id} (${created.name}) — Auto-Valued at ₱${created.cost.toLocaleString()}`,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        type: 'WRITEOFF'
-      },
+      { id: `LOG-${Math.floor(800 + Math.random() * 200)}`, text: `Added write-off asset ${created.id} (Auto Valued: ₱${created.cost.toLocaleString()})`, time: 'Just now', type: 'PURCHASE' },
       ...prev
     ]);
-
-    onTriggerNotification(
-      `Added ${created.id} (${created.name}) with Auto PH Market Price: ₱${created.cost.toLocaleString()}!`
-    );
   };
 
-  const handleSaveEditWriteOff = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingWriteOff) return;
-
-    setUnrepairableAssets(prev =>
-      prev.map(item => (item.id === editingWriteOff.id ? editingWriteOff : item))
-    );
-
-    setAuditLogs(prev => [
-      {
-        id: `AUD-${Math.floor(100 + Math.random() * 899)}`,
-        text: `Updated Write-Off Asset ${editingWriteOff.id} (${editingWriteOff.status}) — ₱${editingWriteOff.cost.toLocaleString()}`,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        type: 'WRITEOFF'
-      },
-      ...prev
-    ]);
-
-    onTriggerNotification(`Updated Write-Off record ${editingWriteOff.id} (₱${editingWriteOff.cost.toLocaleString()}).`);
-    setEditingWriteOff(null);
-  };
-
-  const handleDeleteWriteOffItem = (id: string) => {
-    const target = unrepairableAssets.find(a => a.id === id);
+  const handleDeleteItem = (id: string) => {
     setUnrepairableAssets(prev => prev.filter(a => a.id !== id));
-    setAuditLogs(prev => [
-      {
-        id: `AUD-${Math.floor(100 + Math.random() * 899)}`,
-        text: `Removed Write-Off Asset ${id} (₱${(target?.cost || 0).toLocaleString()}) from ledger`,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        type: 'DELETE'
-      },
-      ...prev
-    ]);
-    onTriggerNotification(`Removed Write-Off item ${id} from financial ledger.`);
+    onTriggerNotification(`Naalis na ang item ${id} sa ledger list.`);
   };
 
-  const handleToggleWriteOffStatus = (id: string) => {
-    setUnrepairableAssets(prev =>
-      prev.map(a => {
-        if (a.id === id) {
-          const nextStatus: WriteOffItem['status'] =
-            a.status === 'REPLACED' ? 'BEYOND REPAIR' : 'REPLACED';
-          onTriggerNotification(`Changed status of ${id} to ${nextStatus}.`);
-          return { ...a, status: nextStatus };
-        }
-        return a;
-      })
-    );
+  const handleToggleStatus = (id: string) => {
+    setUnrepairableAssets(prev => prev.map(a => {
+      if (a.id === id) {
+        const nextStatus = a.status === 'REPLACED' ? 'BEYOND REPAIR' : 'REPLACED';
+        onTriggerNotification(`Nabagong status ng ${id} sa ${nextStatus}`);
+        return { ...a, status: nextStatus };
+      }
+      return a;
+    }));
   };
 
-  const handleAddFinancialExpense = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newExpense.title.trim()) return;
+  const buildLayerPath = (key: 'l1' | 'l2') => {
+    const height = 110;
+    const linePath = wavePoints.reduce((acc, curr, i, a) => {
+      const yPos = height - (curr[key] / 100) * height * 0.82 - 8;
+      if (i === 0) return `M ${curr.x},${yPos}`;
+      const prev = a[i - 1];
+      const prevY = height - (prev[key] / 100) * height * 0.82 - 8;
+      const cx = (prev.x + curr.x) / 2;
+      return `${acc} C ${cx},${prevY} ${cx},${yPos} ${curr.x},${yPos}`;
+    }, '');
 
-    const autoEstimated = estimateMarketPrice(newExpense.title);
-    const finalAmount =
-      newExpense.isManualAmount && Number(newExpense.amount) > 0
-        ? Number(newExpense.amount)
-        : autoEstimated > 0
-        ? autoEstimated
-        : 3500;
-
-    const createdExp: FinancialExpenseItem = {
-      id: `EXP-${Math.floor(510 + Math.random() * 480)}`,
-      title: newExpense.title.trim(),
-      category: newExpense.category,
-      lab: newExpense.lab.trim(),
-      amount: finalAmount,
-      date: new Date().toISOString().split('T')[0]
-    };
-
-    setExpenseRecords(prev => [createdExp, ...prev]);
-    setIsAddExpenseOpen(false);
-    setNewExpense({ title: '', category: 'MAINTENANCE', lab: 'ComLab 1 (ICT)', amount: 0, isManualAmount: false });
-
-    setAuditLogs(prev => [
-      {
-        id: `AUD-${Math.floor(100 + Math.random() * 899)}`,
-        text: `Recorded ${createdExp.category} Expense: ${createdExp.title} (Auto-Valued: ₱${createdExp.amount.toLocaleString()})`,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        type: 'EXPENSE'
-      },
-      ...prev
-    ]);
-
-    onTriggerNotification(
-      `Recorded ${createdExp.category} expense of ₱${createdExp.amount.toLocaleString()} (${createdExp.title}).`
-    );
-  };
-
-  const handleDeleteExpense = (id: string) => {
-    const target = expenseRecords.find(e => e.id === id);
-    setExpenseRecords(prev => prev.filter(e => e.id !== id));
-    onTriggerNotification(`Removed expense record ${target?.title || id}.`);
-  };
-
-  const handleUpdateBudget = (e: React.FormEvent) => {
-    e.preventDefault();
-    const val = Number(budgetInput);
-    if (isNaN(val) || val <= 0) return;
-    setAllocatedBudget(val);
-    setIsEditBudgetOpen(false);
-    setAuditLogs(prev => [
-      {
-        id: `AUD-${Math.floor(100 + Math.random() * 899)}`,
-        text: `Updated Total Institutional Allocated Budget to ₱${val.toLocaleString()}`,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        type: 'BUDGET'
-      },
-      ...prev
-    ]);
-    onTriggerNotification(`Updated Total Allocated Budget to ₱${val.toLocaleString()}.`);
-  };
-
-  const handleSaveLabEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingLabRecord) return;
-    const ratio = editingLabRecord.activePCs / Math.max(1, editingLabRecord.totalPCs);
-    const updated: LabPerformanceRecord = {
-      ...editingLabRecord,
-      healthStatus: ratio >= 0.8 ? 'HEALTHY' : ratio >= 0.5 ? 'WARNING' : 'CRITICAL'
-    };
-    setLabRecords(prev => prev.map(l => (l.labId === updated.labId ? updated : l)));
-    setEditingLabRecord(null);
-    onTriggerNotification(`Updated telemetry parameters for ${updated.labName}.`);
-  };
-
-  // EXPORT HANDLERS
-  const handleExportCsv = () => {
-    setIsExporting('CSV');
-    setTimeout(() => {
-      const csvRows = [
-        ['SECTION', 'ID / TAG', 'LAB / CATEGORY', 'NAME / DESCRIPTION', 'METRIC 1', 'METRIC 2', 'STATUS', 'COST / LOAD'],
-        ...labRecords.map(l => [
-          'LAB_TELEMETRY',
-          l.labId,
-          `"${l.labName}"`,
-          `"Occupancy: ${l.activePCs}/${l.totalPCs} PCs"`,
-          `CPU ${l.cpuAvgPct}%`,
-          `RAM ${l.ramAvgPct}%`,
-          l.healthStatus,
-          `${l.openTickets} Open Tickets`
-        ]),
-        ...unrepairableAssets.map(w => [
-          'WRITE_OFF_ASSET',
-          w.id,
-          `"${w.lab}"`,
-          `"${w.name}"`,
-          `"${w.issue}"`,
-          w.dateAdded,
-          w.status,
-          `PHP ${w.cost}`
-        ]),
-        ...expenseRecords.map(x => [
-          'FINANCIAL_EXPENSE',
-          x.id,
-          x.category,
-          `"${x.title}"`,
-          `"${x.lab}"`,
-          x.date,
-          'VERIFIED',
-          `PHP ${x.amount}`
-        ])
-      ];
-
-      const csvContent = 'data:text/csv;charset=utf-8,' + csvRows.map(e => e.join(',')).join('\n');
-      const link = document.createElement('a');
-      link.setAttribute('href', encodeURI(csvContent));
-      link.setAttribute(
-        'download',
-        `JRMSU_Analytics_And_Financial_Report_${timeframe}_${new Date().toISOString().split('T')[0]}.csv`
-      );
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      setIsExporting(null);
-      onTriggerNotification('Exported Unified Telemetry & Financial Ledger to CSV!');
-    }, 350);
+    return `${linePath} L 300,110 L 0,110 Z`;
   };
 
   const handleExportPdf = () => {
     setIsExporting('PDF');
     setTimeout(() => {
-      window.print();
       setIsExporting(null);
-      onTriggerNotification('Generated Printable Analytics & Financial Audit Report!');
-    }, 300);
+      onTriggerNotification('Nai-export na ang Complete Financial Audit Report sa PDF!');
+    }, 1000);
+  };
+
+  const handleExportCsv = () => {
+    setIsExporting('CSV');
+    setTimeout(() => {
+      setIsExporting(null);
+      onTriggerNotification('Nai-export na ang Financial Ledger Dataset sa CSV!');
+    }, 1000);
   };
 
   return (
-    <div className="analytics-3d-shell p-5 sm:p-7 rounded-[2.5rem] space-y-7 font-sans select-none animate-in fade-in duration-300">
-      {/* 3D EXTRUDED DEPTH & PRINT ENGINE CSS */}
-      <style>{`
-        .analytics-3d-shell {
-          background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
-          border: 2px solid #cbd5e1;
-          box-shadow:
-            0 10px 0 #94a3b8,
-            0 22px 45px -10px rgba(15, 23, 42, 0.25),
-            inset 0 2px 0 #ffffff;
-        }
-        .card-3d-lift {
-          transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
-          transform: translateZ(0);
-        }
-        .card-3d-lift:hover {
-          transform: translate3d(0, -4px, 0);
-        }
-        .btn-3d-bevel {
-          box-shadow: 0 4px 0 #1e3a8a, 0 8px 16px rgba(37, 99, 235, 0.28);
-          transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-        .btn-3d-bevel:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 0 #1e3a8a, 0 12px 22px rgba(37, 99, 235, 0.35);
-        }
-        .btn-3d-bevel:active {
-          transform: translateY(3px);
-          box-shadow: 0 1px 0 #1e3a8a;
-        }
-        @media print {
-          body * {
-            visibility: hidden !important;
-          }
-          #analytics-financial-printable, #analytics-financial-printable * {
-            visibility: visible !important;
-          }
-          #analytics-financial-printable {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-          }
-          .no-print {
-            display: none !important;
-          }
-        }
-      `}</style>
-
-      <datalist id="lab-location-options">
-        <option value="ComLab 1 (ICT)" />
-        <option value="ComLab 2 (Multimedia)" />
-        <option value="ComLab 3 (Engineering)" />
-        <option value="Server Room" />
-      </datalist>
-
-      <datalist id="hardware-market-suggestions">
-        <option value="27&quot; 144Hz IPS Monitor" />
-        <option value="NVIDIA RTX 4060 8GB Graphics Card" />
-        <option value="NVIDIA RTX 4070 Super Graphics Card" />
-        <option value="Core i7-13700 Workstation System Unit" />
-        <option value="Kingston Fury 32GB DDR5 RAM Kit" />
-        <option value="Samsung 1TB NVMe M.2 SSD" />
-        <option value="1500VA Line-Interactive UPS Backup" />
-        <option value="Cisco Catalyst 24-Port Managed Switch" />
-        <option value="iPhone 16 Pro Max" />
-        <option value="MacBook Pro M3" />
-      </datalist>
-
-      <datalist id="expense-particulars-suggestions">
-        <option value="Quarterly Preventive Thermal Paste &amp; Antistatic Cleaning" />
-        <option value="Windows 11 Education &amp; Microsoft 365 Campus License" />
-        <option value="Cisco 24-Port Gigabit VLAN Switch Upgrade" />
-        <option value="RJ45 Cat6 Patch Cables &amp; Keystone Jack Replacements" />
-        <option value="ComLab Aircon / HVAC Preventive Servicing" />
-        <option value="1500VA UPS Battery Cell Replacement" />
-      </datalist>
-
-      <div id="analytics-financial-printable" className="space-y-7">
-        {/* =====================================================================
-            1. OBSIDIAN 3D COMMAND HEADER (MERGED ANALYTICS & FINANCIAL LEDGER)
-           ===================================================================== */}
-        <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-slate-950 via-blue-950 to-slate-900 text-white border-2 border-cyan-500/40 shadow-[0_8px_0_#0f172a,0_20px_35px_rgba(2,6,23,0.45)] space-y-4">
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="p-3.5 bg-gradient-to-br from-cyan-400 to-blue-600 text-slate-950 rounded-2xl shadow-[0_5px_0_#1e3a8a,0_0_25px_rgba(56,189,248,0.55)]">
-                <BarChart3 className="w-7 h-7 stroke-[2.5]" />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full font-mono font-black text-[10px] border border-emerald-400/40 flex items-center gap-1.5">
-                    <Radio className={`w-3 h-3 ${isLiveStreaming ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
-                    <span>{isLiveStreaming ? `LIVE WAVE OSCILLATOR (${waveSpeed}x)` : 'WAVE PAUSED'}</span>
-                  </span>
-                  <span className="px-2.5 py-0.5 bg-cyan-500/20 text-cyan-300 rounded-full font-mono font-black text-[10px] border border-cyan-400/40">
-                    {activeCampus}
-                  </span>
-                </div>
-                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-1">
-                  Analytics, Telemetry &amp; Financial Write-Off Command
-                </h2>
-                <p className="text-xs text-slate-300 mt-0.5 font-medium">
-                  Real-time wave telemetry, MTTR/SLA compliance, budget allocation, and auto-detected PH market write-off valuation
-                </p>
-              </div>
-            </div>
-
-            {/* Top Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2.5 no-print">
-              <button
-                type="button"
-                onClick={fetchAllAnalyticsAndFinancials}
-                className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 font-black text-xs rounded-2xl border border-slate-600 shadow-[0_4px_0_#020617] active:translate-y-0.5 transition cursor-pointer flex items-center gap-1.5"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingApi ? 'animate-spin' : ''}`} />
-                <span>Sync Data</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsAddWriteOffOpen(true)}
-                className="px-4 py-2.5 bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-400 hover:to-orange-400 text-white font-black text-xs rounded-2xl shadow-[0_4px_0_#881337] active:translate-y-0.5 transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                <span>Add Write-Off Item</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsAddExpenseOpen(true)}
-                className="px-4 py-2.5 bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-slate-950 font-black text-xs rounded-2xl shadow-[0_4px_0_#064e3b] active:translate-y-0.5 transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <DollarSign className="w-4 h-4 stroke-[2.5]" />
-                <span>Add Financial Expense</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setBudgetInput(String(allocatedBudget));
-                  setIsEditBudgetOpen(true);
-                }}
-                className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-black text-xs rounded-2xl border border-amber-400/40 shadow-[0_4px_0_#020617] active:translate-y-0.5 transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <Wallet className="w-4 h-4" />
-                <span>Set Budget</span>
-              </button>
-            </div>
+    <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 space-y-6 animate-in fade-in duration-300">
+      
+      {/* HEADER BAR */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-blue-50 text-blue-600 rounded-2xl border border-blue-100">
+            <DollarSign className="w-5 h-5 animate-pulse" />
           </div>
-
-          {/* Sub-Header View Switcher, Lab Selector & Wave Speed Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/15 no-print">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-black">
-              <button
-                type="button"
-                onClick={() => setCommandTab('UNIFIED_ALL')}
-                className={`px-4 py-1.5 rounded-xl transition cursor-pointer ${
-                  commandTab === 'UNIFIED_ALL'
-                    ? 'bg-cyan-400 text-slate-950 shadow-[0_3px_0_#0284c7]'
-                    : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700'
-                }`}
-              >
-                All-in-One Command
-              </button>
-              <button
-                type="button"
-                onClick={() => setCommandTab('TELEMETRY_ONLY')}
-                className={`px-4 py-1.5 rounded-xl transition cursor-pointer ${
-                  commandTab === 'TELEMETRY_ONLY'
-                    ? 'bg-blue-400 text-slate-950 shadow-[0_3px_0_#1e3a8a]'
-                    : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700'
-                }`}
-              >
-                System Telemetry &amp; SLA ({labRecords.length} Labs)
-              </button>
-              <button
-                type="button"
-                onClick={() => setCommandTab('FINANCIAL_ONLY')}
-                className={`px-4 py-1.5 rounded-xl transition cursor-pointer ${
-                  commandTab === 'FINANCIAL_ONLY'
-                    ? 'bg-emerald-400 text-slate-950 shadow-[0_3px_0_#065f46]'
-                    : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700'
-                }`}
-              >
-                Financial Ledger &amp; Write-Offs ({unrepairableAssets.length} Units)
-              </button>
-
-              {/* Lab Filter Dropdown right in Command Bar */}
-              <select
-                value={selectedLab}
-                onChange={(e) => setSelectedLab(e.target.value)}
-                className="bg-slate-900 border border-cyan-500/40 px-3 py-1.5 rounded-xl text-xs font-black text-cyan-300 outline-none cursor-pointer"
-              >
-                <option value="ALL">All Laboratories ({labRecords.length})</option>
-                {labRecords.map(lab => (
-                  <option key={lab.labId} value={lab.labId}>
-                    {lab.labName}
-                  </option>
-                ))}
-              </select>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-xl font-black text-slate-900 tracking-tight">Financial Records & Equipment Write-Offs</h3>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
             </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Wave Speed Control */}
-              <div className="bg-slate-900 p-1 rounded-xl flex items-center gap-1 text-[10px] font-mono font-black border border-slate-700">
-                <Gauge className="w-3.5 h-3.5 text-cyan-400 ml-1.5" />
-                {([1, 1.5, 2] as const).map(spd => (
-                  <button
-                    key={spd}
-                    type="button"
-                    onClick={() => setWaveSpeed(spd)}
-                    className={`px-2 py-1 rounded-lg transition cursor-pointer ${
-                      waveSpeed === spd ? 'bg-emerald-400 text-slate-950' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {spd}x
-                  </button>
-                ))}
-              </div>
-
-              <div className="bg-slate-900 p-1 rounded-xl flex items-center gap-1 text-[11px] font-mono font-black border border-slate-700">
-                {(['LIVE', '24H', '7D', '30D'] as const).map(tf => (
-                  <button
-                    key={tf}
-                    type="button"
-                    onClick={() => setTimeframe(tf)}
-                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                      timeframe === tf ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {tf}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsLiveStreaming(!isLiveStreaming)}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                  isLiveStreaming
-                    ? 'border-emerald-400/50 bg-emerald-500/20 text-emerald-300'
-                    : 'border-slate-700 bg-slate-900 text-slate-400'
-                }`}
-              >
-                <Radio className={`w-3.5 h-3.5 ${isLiveStreaming ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
-                <span>{isLiveStreaming ? 'Wave Active' : 'Paused'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleExportPdf}
-                disabled={isExporting !== null}
-                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold border border-white/20 transition cursor-pointer flex items-center gap-1.5"
-              >
-                <FileText className="w-3.5 h-3.5 text-cyan-300" />
-                <span>PDF</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleExportCsv}
-                disabled={isExporting !== null}
-                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold border border-white/20 transition cursor-pointer flex items-center gap-1.5"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300" />
-                <span>CSV</span>
-              </button>
-            </div>
+            <p className="text-xs text-slate-400">Real-time Budget Allocation, Equipment Disposal & Maintenance Ledger • {campusName}</p>
           </div>
         </div>
 
-        {/* =====================================================================
-            2. TOP 4 EXTRUDED 3D KPI CUBES (ACCURATE FINANCIAL & TELEMETRY TOTALS)
-           ===================================================================== */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <div
-            onClick={() => {
-              setBudgetInput(String(allocatedBudget));
-              setIsEditBudgetOpen(true);
-            }}
-            title="Click to adjust Total Allocated Budget"
-            className="card-3d-lift p-5 rounded-3xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-900 text-white border-2 border-blue-400/50 shadow-[0_8px_0_#1e3a8a,0_16px_30px_rgba(37,99,235,0.28)] flex items-center justify-between cursor-pointer"
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5 active:scale-95"
           >
-            <div className="space-y-1 flex-1 pr-2">
-              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-cyan-200 block">
-                ALLOCATED BUDGET (EDIT)
-              </span>
-              <p className="text-2xl sm:text-3xl font-black text-white font-mono">
-                ₱{allocatedBudget.toLocaleString()}
-              </p>
-              <div className="w-full bg-slate-950/60 h-2 rounded-full overflow-hidden p-0.5 border border-blue-400/30">
-                <div
-                  className="bg-gradient-to-r from-cyan-400 to-emerald-400 h-full rounded-full transition-all duration-300"
-                  style={{ width: `${spentPercentage}%` }}
-                />
-              </div>
-            </div>
-            <IsometricAnalyticsRig mode="FINANCIAL" code={`${spentPercentage}%`} />
-          </div>
+            <Plus className="w-4 h-4" />
+            <span>Add Write-Off Item</span>
+          </button>
 
-          <div className="card-3d-lift p-5 rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-700 to-emerald-900 text-white border-2 border-emerald-400/50 shadow-[0_8px_0_#064e3b,0_16px_30px_rgba(16,185,129,0.28)] flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-emerald-200 block">
-                REMAINING LIQUIDITY
-              </span>
-              <p className="text-2xl sm:text-3xl font-black text-white font-mono mt-0.5">
-                ₱{remainingBudget.toLocaleString()}
-              </p>
-              <span className="text-[11px] text-emerald-200 font-bold block mt-1">
-                Spent: ₱{totalSpent.toLocaleString()} ({spentPercentage}%)
-              </span>
-            </div>
-            <IsometricAnalyticsRig mode="TELEMETRY" code="LIQUID" />
-          </div>
-
-          <div className="card-3d-lift p-5 rounded-3xl bg-gradient-to-br from-rose-600 via-rose-700 to-rose-950 text-white border-2 border-rose-400/50 shadow-[0_8px_0_#881337,0_16px_30px_rgba(225,29,72,0.28)] flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-rose-200 block">
-                UNREPAIRABLE WRITE-OFFS
-              </span>
-              <p className="text-2xl sm:text-3xl font-black text-white font-mono mt-0.5">
-                ₱{totalWriteOffCost.toLocaleString()}
-              </p>
-              <span className="text-[11px] text-rose-200 font-bold block mt-1">
-                {unrepairableAssets.length} Condemned / Disposed Units
-              </span>
-            </div>
-            <IsometricAnalyticsRig mode="SLA" code={`${unrepairableAssets.length} PC`} />
-          </div>
-
-          <div className="card-3d-lift p-5 rounded-3xl bg-gradient-to-br from-amber-500 via-orange-600 to-amber-800 text-white border-2 border-amber-300/60 shadow-[0_8px_0_#78350f,0_16px_30px_rgba(245,158,11,0.28)] flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-amber-100 block">
-                ACTIVE FLEET &amp; SLA MET
-              </span>
-              <p className="text-2xl sm:text-3xl font-black text-white font-mono mt-0.5">
-                {telemetryTotals.activePCs}/{telemetryTotals.totalPCs} PCs
-              </p>
-              <span className="text-[11px] text-amber-100 font-bold block mt-1">
-                {slaMetPct}% SLA • Avg CPU {telemetryTotals.avgCpu}%
-              </span>
-            </div>
-            <IsometricAnalyticsRig mode="TELEMETRY" code={`${slaMetPct}%`} />
+          <div className="bg-slate-100 p-1 rounded-2xl flex items-center gap-1 text-[11px] font-bold">
+            {(['LIVE', '24H', '7D', '30D'] as const).map(tf => (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                className={`px-3 py-1 rounded-xl transition cursor-pointer ${timeframe === tf ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                {tf}
+              </button>
+            ))}
           </div>
         </div>
-
-        {/* =====================================================================
-            3. UNIFIED 3-CHART REAL-TIME FLOWING WAVE OSCILLOSCOPE DECK
-           ===================================================================== */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          {/* WAVE CHART 1 (4 COLS): USERS & CONCURRENT ACCESS THROUGHPUT WAVE */}
-          {(commandTab === 'UNIFIED_ALL' || commandTab === 'TELEMETRY_ONLY') && (
-            <div
-              className={`${
-                commandTab === 'TELEMETRY_ONLY' ? 'lg:col-span-6' : 'lg:col-span-4'
-              } bg-white p-5 rounded-3xl border-2 border-slate-300 shadow-[0_7px_0_#cbd5e1] flex flex-col justify-between space-y-4`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-mono font-black uppercase text-blue-600 block">
-                    CONCURRENT ACCESS STREAM
-                  </span>
-                  <h4 className="text-base font-black text-slate-900 flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-blue-600" />
-                    <span>Workstation Access Wave</span>
-                  </h4>
-                </div>
-                <span className="px-2.5 py-0.5 rounded-full bg-cyan-50 text-cyan-800 border border-cyan-200 font-mono font-black text-[10px]">
-                  {telemetryTotals.occupancyPct}% Load
-                </span>
-              </div>
-
-              <div className="bg-slate-950 p-4 rounded-2xl border-2 border-slate-800 relative overflow-hidden shadow-inner">
-                <div className="h-36 w-full relative">
-                  <svg className="w-full h-full overflow-visible" viewBox="0 0 300 100" preserveAspectRatio="none">
-                    <defs>
-                      <linearGradient id="accessWaveGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.55" />
-                        <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.02" />
-                      </linearGradient>
-                    </defs>
-                    <line x1="0" y1="75" x2="300" y2="75" stroke="#1e293b" strokeWidth="1" strokeDasharray="3 3" />
-                    <line x1="0" y1="40" x2="300" y2="40" stroke="#1e293b" strokeWidth="1" strokeDasharray="3 3" />
-
-                    <path d={accessAreaPath} fill="url(#accessWaveGrad)" />
-                    <path d={accessLinePath} fill="none" stroke="#38bdf8" strokeWidth="2.8" strokeLinecap="round" />
-
-                    {accessWavePoints[5] && (
-                      <circle cx={accessWavePoints[5].x} cy={accessWavePoints[5].y} r="4" fill="#38bdf8" />
-                    )}
-                    {accessWavePoints[8] && (
-                      <circle cx={accessWavePoints[8].x} cy={accessWavePoints[8].y} r="4" fill="#10b981" />
-                    )}
-                  </svg>
-
-                  <div className="absolute top-1.5 left-2 bg-slate-900/90 px-2.5 py-1 rounded-xl border border-cyan-400/40 font-mono text-[10px] font-black text-cyan-300">
-                    {telemetryTotals.activePCs} Active PCs • {userAccessCount} Hits
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5 text-xs font-mono">
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[9px] font-sans font-bold text-slate-400 uppercase block">Avg Fleet CPU</span>
-                  <strong className="text-blue-700 font-black">{telemetryTotals.avgCpu}% Load</strong>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[9px] font-sans font-bold text-slate-400 uppercase block">Avg Fleet RAM</span>
-                  <strong className="text-indigo-700 font-black">{telemetryTotals.avgRam}% Used</strong>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* WAVE CHART 2 (4 COLS): MTTR TRENDS & SLA COMPLIANCE WAVE */}
-          {(commandTab === 'UNIFIED_ALL' || commandTab === 'TELEMETRY_ONLY') && (
-            <div
-              className={`${
-                commandTab === 'TELEMETRY_ONLY' ? 'lg:col-span-6' : 'lg:col-span-4'
-              } bg-white p-5 rounded-3xl border-2 border-slate-300 shadow-[0_7px_0_#cbd5e1] flex flex-col justify-between space-y-4`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-mono font-black uppercase text-rose-600 block">
-                    MTTR &amp; SLA OSCILLATOR
-                  </span>
-                  <h4 className="text-base font-black text-slate-900 flex items-center gap-1.5">
-                    <TrendingUp className="w-4 h-4 text-rose-600" />
-                    <span>MTTR Response &amp; SLA Wave</span>
-                  </h4>
-                </div>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-black text-[10px]">
-                  {slaMetPct}% SLA Met
-                </span>
-              </div>
-
-              <div className="bg-slate-950 p-4 rounded-2xl border-2 border-slate-800 relative overflow-hidden shadow-inner">
-                <div className="h-36 w-full relative">
-                  <svg className="w-full h-full overflow-visible" viewBox="0 0 300 110" preserveAspectRatio="none">
-                    <line x1="0" y1="85" x2="300" y2="85" stroke="#1e293b" strokeWidth="1" strokeDasharray="3 3" />
-                    <line x1="0" y1="45" x2="300" y2="45" stroke="#1e293b" strokeWidth="1" strokeDasharray="3 3" />
-
-                    <path d={mttrLine1Path} fill="none" stroke="#f43f5e" strokeWidth="2.8" strokeLinecap="round" />
-                    <path
-                      d={mttrLine2Path}
-                      fill="none"
-                      stroke="#fbbf24"
-                      strokeWidth="2.2"
-                      strokeDasharray="5 3"
-                      strokeLinecap="round"
-                    />
-
-                    {mttrWavePoints.map((p, i) => (
-                      <circle key={i} cx={p.x} cy={p.y1} r="3.2" fill="#f43f5e" />
-                    ))}
-                  </svg>
-
-                  <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-1 border-t border-slate-800 pt-1">
-                    {mttrWavePoints.map((p, i) => (
-                      <span key={i}>{p.day}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 text-center font-mono text-xs">
-                <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[9px] font-sans font-bold text-slate-400 uppercase block">Response</span>
-                  <strong className="text-slate-900 font-black">{responseTime}h</strong>
-                </div>
-                <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[9px] font-sans font-bold text-slate-400 uppercase block">Resolution</span>
-                  <strong className="text-blue-600 font-black">{resolutionTime}h</strong>
-                </div>
-                <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[9px] font-sans font-bold text-slate-400 uppercase block">Downtime</span>
-                  <strong className="text-amber-600 font-black">{downtime}%</strong>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* WAVE CHART 3 (4 COLS): FINANCIAL FORECAST & BUDGET UTILIZATION WAVE */}
-          {(commandTab === 'UNIFIED_ALL' || commandTab === 'FINANCIAL_ONLY') && (
-            <div
-              className={`${
-                commandTab === 'FINANCIAL_ONLY' ? 'lg:col-span-12' : 'lg:col-span-4'
-              } bg-white p-5 rounded-3xl border-2 border-slate-300 shadow-[0_7px_0_#cbd5e1] flex flex-col justify-between space-y-4`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-mono font-black uppercase text-emerald-600 block">
-                    FINANCIAL UTILIZATION WAVE
-                  </span>
-                  <h4 className="text-base font-black text-slate-900 flex items-center gap-1.5">
-                    <DollarSign className="w-4 h-4 text-emerald-600" />
-                    <span>Budget &amp; Expenditure Wave</span>
-                  </h4>
-                </div>
-                <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 font-mono font-black text-[10px]">
-                  {spentPercentage}% Utilized
-                </span>
-              </div>
-
-              <div className="bg-slate-950 p-4 rounded-2xl border-2 border-slate-800 relative overflow-hidden shadow-inner">
-                <div className="h-36 w-full relative">
-                  <svg className="w-full h-full overflow-visible" viewBox="0 0 300 110" preserveAspectRatio="none">
-                    <defs>
-                      <linearGradient id="finWaveGrad1" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.45" />
-                        <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.02" />
-                      </linearGradient>
-                      <linearGradient id="finWaveGrad2" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.6" />
-                        <stop offset="100%" stopColor="#10b981" stopOpacity="0.05" />
-                      </linearGradient>
-                    </defs>
-
-                    <line x1="0" y1="85" x2="300" y2="85" stroke="#1e293b" strokeWidth="1" strokeDasharray="3 3" />
-                    <line x1="0" y1="45" x2="300" y2="45" stroke="#1e293b" strokeWidth="1" strokeDasharray="3 3" />
-
-                    <path d={finArea1Path} fill="url(#finWaveGrad1)" />
-                    <path d={finArea2Path} fill="url(#finWaveGrad2)" />
-                    <path d={finLine1Path} fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" />
-                    <path d={finLine2Path} fill="none" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round" />
-                  </svg>
-
-                  <div className="absolute top-1.5 left-2 bg-slate-900/90 px-2.5 py-1 rounded-xl border border-emerald-400/40 font-mono text-[10px] font-black text-emerald-300">
-                    Spent: ₱{totalSpent.toLocaleString()}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 text-center font-mono text-[11px]">
-                <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[8.5px] font-sans font-bold text-slate-400 uppercase block">Maint</span>
-                  <strong className="text-blue-700 font-black">₱{(maintenanceCost / 1000).toFixed(1)}k</strong>
-                </div>
-                <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[8.5px] font-sans font-bold text-slate-400 uppercase block">Write-Off</span>
-                  <strong className="text-rose-600 font-black">₱{(totalWriteOffCost / 1000).toFixed(1)}k</strong>
-                </div>
-                <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[8.5px] font-sans font-bold text-slate-400 uppercase block">Software</span>
-                  <strong className="text-emerald-700 font-black">₱{(softwareAndInfraCost / 1000).toFixed(1)}k</strong>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* =====================================================================
-            4. ORGANIZED SECTION A: LABORATORY FACILITY BREAKDOWN MATRIX TABLE
-           ===================================================================== */}
-        {(commandTab === 'UNIFIED_ALL' || commandTab === 'TELEMETRY_ONLY') && (
-          <div className="bg-white p-5 sm:p-6 rounded-3xl border-2 border-slate-300 shadow-[0_7px_0_#cbd5e1] space-y-4">
-            <div className="flex flex-wrap justify-between items-center gap-2 border-b-2 border-slate-100 pb-3">
-              <div>
-                <span className="text-[10px] font-mono font-black text-blue-600 uppercase">
-                  LIVE HARDWARE TELEMETRY MATRIX
-                </span>
-                <h4 className="font-black text-slate-900 text-lg flex items-center gap-2">
-                  <Laptop className="w-5 h-5 text-blue-600" />
-                  <span>Laboratory Facility Breakdown &amp; Hardware Load</span>
-                </h4>
-              </div>
-              <div className="flex items-center gap-2 no-print">
-                <button
-                  type="button"
-                  onClick={() =>
-                    onTriggerNotification('Broadcasted Provision & Telemetry Alert across ComLab 1–3!')
-                  }
-                  className="btn-3d-bevel px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl cursor-pointer flex items-center gap-1.5"
-                >
-                  <BellRing className="w-3.5 h-3.5" />
-                  <span>Provision Alert Broadcast</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-2xl border-2 border-slate-200">
-              <table className="w-full text-left text-xs text-slate-700 font-semibold">
-                <thead className="bg-slate-900 text-cyan-300 font-mono font-black uppercase text-[10px] border-b-2 border-slate-800">
-                  <tr>
-                    <th className="p-3.5">Laboratory Name</th>
-                    <th className="p-3.5">Occupancy (Active / Total)</th>
-                    <th className="p-3.5">Avg CPU Load</th>
-                    <th className="p-3.5">Avg RAM Usage</th>
-                    <th className="p-3.5">Open Maintenance Tickets</th>
-                    <th className="p-3.5">Health Status</th>
-                    <th className="p-3.5 text-right no-print">Adjust</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 bg-white">
-                  {filteredLabRecords.map(lab => (
-                    <tr key={lab.labId} className="hover:bg-blue-50/50 transition">
-                      <td className="p-3.5 font-black text-slate-900">{lab.labName}</td>
-                      <td className="p-3.5 font-mono">
-                        <span className="text-blue-700 font-black">{lab.activePCs}</span> / {lab.totalPCs} PCs
-                      </td>
-                      <td className="p-3.5 font-mono font-black">
-                        <div className="flex items-center gap-2">
-                          <span className="w-9">{lab.cpuAvgPct}%</span>
-                          <div className="w-24 bg-slate-200 h-2 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full transition-all duration-300 ${
-                                lab.cpuAvgPct > 75 ? 'bg-rose-500' : 'bg-blue-600'
-                              }`}
-                              style={{ width: `${lab.cpuAvgPct}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-3.5 font-mono font-black">
-                        <div className="flex items-center gap-2">
-                          <span className="w-9">{lab.ramAvgPct}%</span>
-                          <div className="w-20 bg-slate-200 h-2 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-indigo-600 transition-all duration-300"
-                              style={{ width: `${lab.ramAvgPct}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-3.5 font-mono text-amber-600 font-black">{lab.openTickets} Tickets</td>
-                      <td className="p-3.5">
-                        <span
-                          className={`px-2.5 py-1 rounded-xl text-[10px] font-mono font-black border ${
-                            lab.healthStatus === 'HEALTHY'
-                              ? 'bg-emerald-500 text-white border-emerald-600'
-                              : 'bg-amber-500 text-slate-950 border-amber-600'
-                          }`}
-                        >
-                          {lab.healthStatus}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-right no-print">
-                        <button
-                          type="button"
-                          onClick={() => setEditingLabRecord(lab)}
-                          className="p-1.5 bg-slate-100 hover:bg-blue-600 text-slate-700 hover:text-white rounded-xl border border-slate-300 transition cursor-pointer"
-                          title="Edit Lab Capacity & Telemetry"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* =====================================================================
-            5. ORGANIZED SECTION B: WRITE-OFF LEDGER + EXPENSES & AUDIT SPLIT DECK
-           ===================================================================== */}
-        {(commandTab === 'UNIFIED_ALL' || commandTab === 'FINANCIAL_ONLY') && (
-          <div className="space-y-6">
-            {/* CONDEMNED & UNREPAIRABLE ASSETS LEDGER TABLE */}
-            <div className="bg-white p-5 sm:p-6 rounded-3xl border-2 border-slate-300 shadow-[0_7px_0_#cbd5e1] space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-slate-100 pb-3.5">
-                <div>
-                  <span className="text-[10px] font-mono font-black text-rose-600 uppercase">
-                    DISPOSAL &amp; WRITE-OFF LEDGER (AUTO PHILIPPINE RETAIL MARKET VALUATION)
-                  </span>
-                  <h4 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <PackageX className="w-5 h-5 text-rose-600" />
-                    <span>
-                      Unrepairable Laboratory Equipment ({filteredAssets.length} Units • ₱
-                      {totalWriteOffCost.toLocaleString()})
-                    </span>
-                  </h4>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2.5 no-print">
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-blue-600 absolute left-3 top-2.5" />
-                    <input
-                      type="text"
-                      placeholder="Search Asset ID, Name, Lab..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-8 pr-3 py-1.5 bg-slate-50 border-2 border-slate-300 rounded-xl text-xs font-bold text-slate-900 outline-none w-48 focus:border-blue-600"
-                    />
-                  </div>
-
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-3 py-1.5 bg-slate-100 border-2 border-slate-300 rounded-xl text-xs font-black text-slate-800 outline-none cursor-pointer"
-                  >
-                    <option value="ALL">All Status</option>
-                    <option value="BEYOND REPAIR">Beyond Repair</option>
-                    <option value="CONDEMNED">Condemned</option>
-                    <option value="DISPOSED">Disposed</option>
-                    <option value="REPLACED">Replaced</option>
-                  </select>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsAddWriteOffOpen(true)}
-                    className="btn-3d-bevel px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl cursor-pointer flex items-center gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5 stroke-[3]" /> Add Write-Off
-                  </button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto rounded-2xl border-2 border-slate-200">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-900 font-mono font-black uppercase text-[10px] text-cyan-300 border-b-2 border-slate-800">
-                    <tr>
-                      <th className="p-3.5">Asset Tag</th>
-                      <th className="p-3.5">Location</th>
-                      <th className="p-3.5">Hardware Item</th>
-                      <th className="p-3.5">Diagnostic Failure</th>
-                      <th className="p-3.5">Status</th>
-                      <th className="p-3.5 text-right">Replacement Cost</th>
-                      <th className="p-3.5 text-center no-print">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 font-medium bg-white">
-                    {filteredAssets.length > 0 ? (
-                      filteredAssets.map(asset => (
-                        <tr key={asset.id} className="hover:bg-blue-50/50 transition">
-                          <td className="p-3.5 font-mono font-black text-rose-600">{asset.id}</td>
-                          <td className="p-3.5 font-bold text-slate-800">{asset.lab}</td>
-                          <td className="p-3.5 font-black text-slate-900">{asset.name}</td>
-                          <td className="p-3.5 text-slate-600">{asset.issue}</td>
-                          <td className="p-3.5">
-                            <span
-                              className={`px-2.5 py-1 rounded-xl font-mono text-[10px] font-black border ${
-                                asset.status === 'REPLACED'
-                                  ? 'bg-emerald-500 text-white border-emerald-600'
-                                  : 'bg-rose-600 text-white border-rose-700'
-                              }`}
-                            >
-                              {asset.status}
-                            </span>
-                          </td>
-                          <td className="p-3.5 text-right font-mono font-black text-slate-900">
-                            ₱{asset.cost.toLocaleString()}
-                          </td>
-                          <td className="p-3.5 text-center no-print">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => setEditingWriteOff(asset)}
-                                title="Edit Write-Off Item & Cost"
-                                className="p-1.5 bg-slate-100 hover:bg-blue-600 text-slate-700 hover:text-white rounded-xl border border-slate-300 transition cursor-pointer"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleWriteOffStatus(asset.id)}
-                                title="Toggle Status (Mark Replaced)"
-                                className="p-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-xl border border-emerald-200 transition cursor-pointer"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteWriteOffItem(asset.id)}
-                                title="Delete Record"
-                                className="p-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-xl border border-rose-200 transition cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={7} className="p-8 text-center text-slate-400 font-bold">
-                          No write-off items found matching your current filter.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* SIDE-BY-SIDE SPLIT DECK: FINANCIAL EXPENSE LEDGER (7 COLS) + LIVE AUDIT STREAM (5 COLS) */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-              {/* LEFT 7 COLS: FINANCIAL RECORDS & OPERATIONAL EXPENSES */}
-              <div className="lg:col-span-7 bg-white p-5 sm:p-6 rounded-3xl border-2 border-slate-300 shadow-[0_7px_0_#cbd5e1] flex flex-col justify-between space-y-4">
-                <div className="space-y-4">
-                  <div className="flex flex-wrap justify-between items-center gap-2 border-b-2 border-slate-100 pb-3">
-                    <div>
-                      <span className="text-[10px] font-mono font-black text-blue-600 uppercase">
-                        AUTO-VALUED OPERATIONAL LEDGER
-                      </span>
-                      <h4 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                        <Layers className="w-5 h-5 text-blue-600" />
-                        <span>Financial Records &amp; Expenses ({expenseRecords.length})</span>
-                      </h4>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setIsAddExpenseOpen(true)}
-                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-[0_3px_0_#064e3b] cursor-pointer flex items-center gap-1.5 no-print"
-                    >
-                      <Plus className="w-3.5 h-3.5 stroke-[3]" /> Add Expense
-                    </button>
-                  </div>
-
-                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                    {expenseRecords.map(exp => (
-                      <div
-                        key={exp.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-2xl bg-slate-50 border-2 border-slate-200 hover:border-blue-300 transition text-xs"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span
-                            className={`px-2.5 py-1 rounded-lg font-mono font-black text-[9.5px] shrink-0 ${
-                              exp.category === 'MAINTENANCE'
-                                ? 'bg-blue-100 text-blue-900'
-                                : exp.category === 'SOFTWARE'
-                                ? 'bg-emerald-100 text-emerald-900'
-                                : 'bg-purple-100 text-purple-900'
-                            }`}
-                          >
-                            {exp.category}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="font-black text-slate-900 truncate">{exp.title}</p>
-                            <span className="text-[10px] font-mono text-slate-500">
-                              {exp.id} • {exp.lab} • {exp.date}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-end gap-2.5 shrink-0">
-                          <strong className="font-mono font-black text-slate-900 text-sm">
-                            ₱{exp.amount.toLocaleString()}
-                          </strong>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteExpense(exp.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer no-print"
-                            title="Remove Expense"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t-2 border-slate-100 text-xs font-bold">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span>
-                      Allocated: <strong className="font-mono text-slate-900">₱{allocatedBudget.toLocaleString()}</strong>
-                    </span>
-                    <span className="text-slate-300">|</span>
-                    <span>
-                      Spent: <strong className="font-mono text-rose-600">₱{totalSpent.toLocaleString()}</strong>
-                    </span>
-                    <span className="text-slate-300">|</span>
-                    <span>
-                      Remaining: <strong className="font-mono text-emerald-600">₱{remainingBudget.toLocaleString()}</strong>
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* RIGHT 5 COLS: LIVE AUDIT & APPROVAL TRAIL VAULT */}
-              <div className="lg:col-span-5 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 text-white p-5 sm:p-6 rounded-3xl border-2 border-slate-700 shadow-[0_8px_0_#0f172a] flex flex-col justify-between space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <span className="text-xs font-mono font-black text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                      <span>Live Financial &amp; Telemetry Audit Log</span>
-                    </span>
-                    <span className="text-[10px] font-mono text-slate-400">{auditLogs.length} Events</span>
-                  </div>
-
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {auditLogs.map(log => (
-                      <div
-                        key={log.id}
-                        className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-start justify-between gap-2 text-xs"
-                      >
-                        <div className="space-y-0.5">
-                          <span className="text-[9px] font-mono font-black text-cyan-400 block">{log.id}</span>
-                          <p className="text-slate-200 font-semibold leading-snug">{log.text}</p>
-                        </div>
-                        <span className="text-[9.5px] font-mono text-slate-400 shrink-0">{log.time}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5 pt-2 no-print">
-                  <button
-                    type="button"
-                    onClick={handleExportPdf}
-                    className="py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl shadow-[0_4px_0_#1e3a8a] cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <FileText className="w-4 h-4" /> Export PDF
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExportCsv}
-                    className="py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-[0_4px_0_#064e3b] cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <FileSpreadsheet className="w-4 h-4" /> Export CSV
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* =====================================================================
-          ALL MODALS (WITH AUTO-DETECT PRICE & CATEGORY)
-         ===================================================================== */}
+      {/* TOP STATS CARDS BAR */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-1">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Allocated Budget</span>
+          <p className="text-lg font-black text-slate-900 font-mono">₱{allocatedBudget.toLocaleString()}</p>
+          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-2">
+            <div className="bg-blue-600 h-full rounded-full" style={{ width: `${spentPercentage}%` }}></div>
+          </div>
+        </div>
 
-      {/* MODAL 1: ADD WRITE-OFF / CONDEMNED ASSET (AUTO-DETECTS PRICE & TAG) */}
-      {isAddWriteOffOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-[0_12px_0_#1e3a8a,0_25px_50px_rgba(0,0,0,0.5)] space-y-4 border-2 border-blue-400 animate-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-1">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Total Expenditure</span>
+          <p className="text-lg font-black text-slate-900 font-mono">₱{totalSpent.toLocaleString()}</p>
+          <span className="text-[10px] text-blue-600 font-bold font-mono">{spentPercentage}% of Budget Utilized</span>
+        </div>
+
+        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-1">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Remaining Funds</span>
+          <p className="text-lg font-black text-emerald-600 font-mono">₱{remainingBudget.toLocaleString()}</p>
+          <span className="text-[10px] text-emerald-600 font-bold font-mono">â— Active Liquidity</span>
+        </div>
+
+        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-1">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Unrepairable Assets</span>
+          <p className="text-lg font-black text-rose-600 font-mono">₱{totalWriteOffCost.toLocaleString()}</p>
+          <span className="text-[10px] text-rose-600 font-bold font-mono">{unrepairableAssets.length} Write-off Units</span>
+        </div>
+      </div>
+
+      {/* GRAPH CARD */}
+      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">Analytics & Reports</span>
+            <h4 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-blue-600" />
+              <span>Financial Forecast & Growth Wave</span>
+            </h4>
+          </div>
+          <span className="w-2.5 h-2.5 rounded-full border-2 border-slate-300"></span>
+        </div>
+
+        <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100 relative overflow-hidden">
+          <div className="h-36 w-full relative">
+            <svg className="w-full h-full overflow-visible" viewBox="0 0 300 110" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="finGrad1" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.45" />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.05" />
+                </linearGradient>
+                <linearGradient id="finGrad2" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#2563eb" stopOpacity="0.65" />
+                  <stop offset="100%" stopColor="#2563eb" stopOpacity="0.1" />
+                </linearGradient>
+              </defs>
+
+              <line x1="0" y1="90" x2="300" y2="90" stroke="#e2e8f0" strokeWidth="0.8" strokeDasharray="2 2" />
+              <line x1="0" y1="50" x2="300" y2="50" stroke="#e2e8f0" strokeWidth="0.8" strokeDasharray="2 2" />
+              <line x1="0" y1="15" x2="300" y2="15" stroke="#e2e8f0" strokeWidth="0.8" strokeDasharray="2 2" />
+
+              <line x1="50" y1="0" x2="50" y2="110" stroke="#64748b" strokeWidth="1" strokeDasharray="2 2" />
+              <line x1="160" y1="0" x2="160" y2="110" stroke="#64748b" strokeWidth="1" strokeDasharray="2 2" />
+              <line x1="240" y1="0" x2="240" y2="110" stroke="#64748b" strokeWidth="1" strokeDasharray="2 2" />
+
+              <rect x="10" y="30" width="18" height="70" rx="4" fill="#1e3a8a" opacity="0.85" />
+
+              <path 
+                d={buildLayerPath('l1')} 
+                fill="url(#finGrad1)" 
+                className="transition-all duration-300 ease-out"
+              />
+
+              <path 
+                d={buildLayerPath('l2')} 
+                fill="url(#finGrad2)" 
+                className="transition-all duration-300 ease-out"
+              />
+
+              <path 
+                d={buildLayerPath('l1').split(' L 300,110')[0]} 
+                fill="none" 
+                stroke="#3b82f6" 
+                strokeWidth="2.5" 
+                className="transition-all duration-300 ease-out"
+              />
+              <path 
+                d={buildLayerPath('l2').split(' L 300,110')[0]} 
+                fill="none" 
+                stroke="#1d4ed8" 
+                strokeWidth="2" 
+                className="transition-all duration-300 ease-out"
+              />
+
+              <circle cx="160" cy="40" r="3.5" fill="#1d4ed8" className="animate-ping" />
+              <circle cx="160" cy="40" r="3.5" fill="#1d4ed8" />
+              <circle cx="240" cy="22" r="3.5" fill="#1d4ed8" />
+            </svg>
+
+            <div className="absolute top-1 left-[14%] text-[9px] font-bold text-slate-600 bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">Growth Phase</div>
+            <div className="absolute top-1 left-[50%] text-[9px] font-bold text-slate-600 bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">Decline</div>
+            <div className="absolute top-1 left-[76%] text-[9px] font-bold text-slate-600 bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">Peak</div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-200/60 mt-2">
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Operational Stream</span>
+              <p className="text-xs font-black text-slate-800">Primary Allocation: ₱{totalSpent.toLocaleString()}</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs flex items-center gap-2 shadow-2xs">
+                <Zap className="w-3.5 h-3.5 text-blue-600" />
+                <span>2.4 hrs Summary</span>
+              </div>
+
+              <button
+                onClick={() => onTriggerNotification('Financial Audit Stream re-synchronized!')}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-md transition cursor-pointer active:scale-95"
+              >
+                Audit Stream
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CONDEMNED & UNREPAIRABLE ASSETS LEDGER */}
+      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-3">
+          <div>
+            <span className="text-[10px] font-mono font-bold text-rose-600 uppercase">Disposal & Write-Off Ledger</span>
+            <h4 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              <PackageX className="w-4 h-4 text-rose-600" />
+              <span>Unrepairable Laboratory Equipment</span>
+            </h4>
+          </div>
+
+          {/* SEARCH & FILTER CONTROLS */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <input 
+                type="text"
+                placeholder="Search Asset ID, Lab..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none w-48 focus:border-blue-500"
+              />
+            </div>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none cursor-pointer"
+            >
+              <option value="ALL">All Status</option>
+              <option value="BEYOND REPAIR">Beyond Repair</option>
+              <option value="CONDEMNED">Condemned</option>
+              <option value="DISPOSED">Disposed</option>
+              <option value="REPLACED">Replaced</option>
+            </select>
+          </div>
+        </div>
+
+        {/* TABLE */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50 font-bold uppercase text-[10px] text-slate-500 border-b">
+              <tr>
+                <th className="p-3">Asset Tag</th>
+                <th className="p-3">Location</th>
+                <th className="p-3">Hardware Item</th>
+                <th className="p-3">Diagnostic Failure</th>
+                <th className="p-3">Status</th>
+                <th className="p-3 text-right">Replacement Cost</th>
+                <th className="p-3 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y font-mono font-medium">
+              {filteredAssets.length > 0 ? (
+                filteredAssets.map(asset => (
+                  <tr key={asset.id} className="hover:bg-slate-50/80 transition">
+                    <td className="p-3 font-bold text-rose-600">{asset.id}</td>
+                    <td className="p-3 font-sans font-bold text-slate-700">{asset.lab}</td>
+                    <td className="p-3 font-sans font-extrabold text-slate-900">{asset.name}</td>
+                    <td className="p-3 font-sans text-slate-500">{asset.issue}</td>
+                    <td className="p-3">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold border ${asset.status === 'REPLACED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200'}`}>
+                        {asset.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right font-bold text-slate-900">₱{asset.cost.toLocaleString()}</td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => handleToggleStatus(asset.id)}
+                          title="Toggle Status (Mark Replaced)"
+                          className="p-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 rounded-lg transition cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteItem(asset.id)}
+                          title="Delete Record"
+                          className="p-1.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-lg transition cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="p-6 text-center text-slate-400 font-sans italic">
+                    Walang nahanap na write-off item batay sa search filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* FINANCIAL RECORDS LEDGER */}
+      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+        <div className="flex justify-between items-center border-b pb-3">
+          <h4 className="text-lg font-black text-slate-900 flex items-center gap-2">
+            <Layers className="w-4 h-4 text-blue-600" />
+            <span>Financial Records</span>
+          </h4>
+          <span className="text-[10px] font-mono text-slate-400 font-bold">LIVE LEDGER</span>
+        </div>
+
+        <div className="bg-slate-50/80 rounded-2xl border border-slate-200 p-4 space-y-2.5 font-mono text-xs">
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs hover:border-blue-300 transition">
+            <span className="flex items-center gap-2 font-bold text-slate-800 font-sans">
+              <strong className="text-blue-600 font-mono">₱</strong> Preventive Maintenance & Cleaning
+            </span>
+            <strong className="text-slate-900 font-bold text-sm">₱{maintenanceCost.toLocaleString()}</strong>
+          </div>
+
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs hover:border-blue-300 transition">
+            <span className="flex items-center gap-2 font-bold text-slate-800 font-sans">
+              <strong className="text-rose-600 font-mono">₱</strong> Condemned Hardware Replacement Write-off Fund
+            </span>
+            <strong className="text-slate-900 font-bold text-sm">₱{totalWriteOffCost.toLocaleString()}</strong>
+          </div>
+
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs hover:border-blue-300 transition">
+            <span className="flex items-center gap-2 font-bold text-slate-800 font-sans">
+              <strong className="text-blue-600 font-mono">₱</strong> Network Infrastructure & Software Subscriptions
+            </span>
+            <strong className="text-slate-900 font-bold text-sm">₱{softwareCost.toLocaleString()}</strong>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-4 text-xs font-bold text-slate-700">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-blue-600"></span>
+              <span>Allocated: <strong className="font-mono text-slate-900">₱{allocatedBudget.toLocaleString()}</strong></span>
+            </div>
+            <span className="text-slate-300">|</span>
+            <div>
+              <span>Remaining: <strong className="font-mono text-emerald-600">₱{remainingBudget.toLocaleString()}</strong></span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+            <button
+              onClick={() => onTriggerNotification('Nai-terminate na ang active financial session.')}
+              className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-md transition cursor-pointer active:scale-95 flex items-center gap-2"
+            >
+              <X className="w-4 h-4" />
+              <span>Terminate Session</span>
+            </button>
+
+            <button
+              onClick={handleExportCsv}
+              className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs rounded-xl shadow-md transition cursor-pointer active:scale-95 flex items-center gap-1.5"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Export</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* AUDIT LOG TRAIL STREAM */}
+      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Live Audit & Approval Activity</span>
+        <div className="space-y-1.5">
+          {auditLogs.map(log => (
+            <div key={log.id} className="flex items-center justify-between text-xs font-medium text-slate-600 bg-white p-2 rounded-xl border border-slate-100">
+              <span className="flex items-center gap-2">
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                <span>{log.text}</span>
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">{log.time}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* EXPORT BUTTONS */}
+      <div className="flex items-center justify-end gap-3 pt-2">
+        <button
+          onClick={handleExportPdf}
+          disabled={isExporting !== null}
+          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-2 active:scale-95 disabled:opacity-50"
+        >
+          {isExporting === 'PDF' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+          <span>{isExporting === 'PDF' ? 'Generating...' : 'Export PDF'}</span>
+        </button>
+
+        <button
+          onClick={handleExportCsv}
+          disabled={isExporting !== null}
+          className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-2 active:scale-95 disabled:opacity-50"
+        >
+          {isExporting === 'CSV' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+          <span>{isExporting === 'CSV' ? 'Exporting...' : 'Export CSV'}</span>
+        </button>
+      </div>
+
+      {/* ADD WRITE-OFF ITEM MODAL */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center border-b pb-3">
               <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <Plus className="w-5 h-5 text-blue-600" />
+                <Plus className="w-4 h-4 text-blue-600" />
                 <span>Add Write-Off / Condemned Asset</span>
               </h4>
-              <button
-                type="button"
-                onClick={() => setIsAddWriteOffOpen(false)}
-                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 cursor-pointer"
+              <button 
+                onClick={() => setIsAddModalOpen(false)}
+                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 transition cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleAddWriteOffItem} className="space-y-3 text-xs font-bold text-slate-700">
+            <form onSubmit={handleAddItem} className="space-y-3 text-xs font-bold text-slate-700">
               <div>
-                <label className="block mb-1">Hardware / Equipment Name (Auto-Detects Price &amp; Tag)</label>
-                <input
-                  type="text"
-                  list="hardware-market-suggestions"
-                  placeholder="e.g. RTX 4060, 27&quot; 144Hz Monitor, Core i7 Workstation, iPhone 16"
-                  value={newItem.name}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setNewItem(prev => ({
-                      ...prev,
-                      name: val,
-                      id: prev.id || (val.trim().length > 2 ? suggestAssetTagPrefix(val, unrepairableAssets.length) : '')
-                    }));
-                  }}
-                  className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600 font-bold"
+                <label className="block mb-1">Asset ID / Tag #</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. PC-009, IPH-016, MON-015, GPU-010"
+                  value={newItem.id}
+                  onChange={(e) => setNewItem({ ...newItem, id: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-600 font-mono"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block mb-1">Asset ID / Tag #</label>
-                  <input
-                    type="text"
-                    placeholder="Auto-filled or type..."
-                    value={newItem.id}
-                    onChange={(e) => setNewItem({ ...newItem, id: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600 font-mono font-black"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block mb-1">Laboratory Location</label>
-                  <input
-                    type="text"
-                    list="lab-location-options"
-                    placeholder="e.g. ComLab 1 (ICT)"
-                    value={newItem.lab}
-                    onChange={(e) => setNewItem({ ...newItem, lab: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600 font-bold"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block mb-1">Diagnostic Failure / Issue</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Burned PCB, Cracked LCD"
-                    value={newItem.issue}
-                    onChange={(e) => setNewItem({ ...newItem, issue: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600"
-                  />
-                </div>
-                <div>
-                  <label className="block mb-1">Custom Cost Override (Optional)</label>
-                  <input
-                    type="number"
-                    placeholder="Leave blank for Auto SRP"
-                    value={newItem.customCost}
-                    onChange={(e) => setNewItem({ ...newItem, customCost: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600 font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* AUTOMATED MARKET PRICE VALUATION BOX */}
-              <div className="bg-blue-50 p-3.5 rounded-2xl border-2 border-blue-200 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono font-black uppercase tracking-wider flex items-center gap-1.5 text-blue-700">
-                    <Zap className="w-3.5 h-3.5 text-blue-600" /> Auto-Detected PH Market Valuation
-                  </span>
-                  <span className="text-[9px] font-mono font-bold bg-blue-200 text-blue-900 px-2 py-0.5 rounded-full">
-                    Verified SRP
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between pt-1">
-                  <span className="text-[11px] text-slate-600">Estimated Replacement Cost:</span>
-                  <span className="text-lg font-black text-blue-900 font-mono">
-                    ₱
-                    {(newItem.customCost && Number(newItem.customCost) > 0
-                      ? Number(newItem.customCost)
-                      : newItem.name
-                      ? estimateMarketPrice(newItem.name)
-                      : 0
-                    ).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setIsAddWriteOffOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-xl cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-3d-bevel px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl cursor-pointer"
-                >
-                  Save Write-Off Record
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: EDIT WRITE-OFF ITEM */}
-      {editingWriteOff && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-[0_12px_0_#1e3a8a,0_25px_50px_rgba(0,0,0,0.5)] space-y-4 border-2 border-blue-400">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <Edit3 className="w-5 h-5 text-blue-600" />
-                <span>Edit Write-Off Asset ({editingWriteOff.id})</span>
-              </h4>
-              <button
-                type="button"
-                onClick={() => setEditingWriteOff(null)}
-                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEditWriteOff} className="space-y-3 text-xs font-bold text-slate-700">
+              {/* DUAL LAB SELECTION */}
               <div>
-                <label className="block mb-1">Hardware Name (Auto-Updates SRP)</label>
-                <input
-                  type="text"
-                  value={editingWriteOff.name}
-                  onChange={(e) => {
-                    const nameVal = e.target.value;
-                    setEditingWriteOff({
-                      ...editingWriteOff,
-                      name: nameVal,
-                      cost: estimateMarketPrice(nameVal) || editingWriteOff.cost
-                    });
-                  }}
-                  className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block mb-1">Laboratory</label>
-                  <input
-                    type="text"
-                    list="lab-location-options"
-                    value={editingWriteOff.lab}
-                    onChange={(e) => setEditingWriteOff({ ...editingWriteOff, lab: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block mb-1">Replacement Cost (₱)</label>
-                  <input
-                    type="number"
-                    value={editingWriteOff.cost}
-                    onChange={(e) => setEditingWriteOff({ ...editingWriteOff, cost: Number(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl font-mono font-black outline-none"
-                    required
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block mb-1">Status</label>
-                <select
-                  value={editingWriteOff.status}
-                  onChange={(e) => setEditingWriteOff({ ...editingWriteOff, status: e.target.value as any })}
-                  className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none font-bold"
-                >
-                  <option value="BEYOND REPAIR">BEYOND REPAIR</option>
-                  <option value="CONDEMNED">CONDEMNED</option>
-                  <option value="DISPOSED">DISPOSED</option>
-                  <option value="REPLACED">REPLACED</option>
-                </select>
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingWriteOff(null)}
-                  className="px-4 py-2 bg-slate-100 rounded-xl font-black cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-3d-bevel px-5 py-2 bg-blue-600 text-white rounded-xl font-black cursor-pointer"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: ADD FINANCIAL EXPENSE ENTRY (WITH AUTO-DETECT PRICE & CATEGORY) */}
-      {isAddExpenseOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-[0_12px_0_#064e3b,0_25px_50px_rgba(0,0,0,0.5)] space-y-4 border-2 border-emerald-400 animate-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-emerald-600" />
-                <span>Add Financial Expense (Auto-Detect Valuation)</span>
-              </h4>
-              <button
-                type="button"
-                onClick={() => setIsAddExpenseOpen(false)}
-                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddFinancialExpense} className="space-y-3 text-xs font-bold text-slate-700">
-              <div>
-                <label className="block mb-1">Expense Item / Service Description (Auto-Detects Price &amp; Category)</label>
-                <input
-                  type="text"
-                  list="expense-particulars-suggestions"
-                  placeholder="e.g. Thermal Paste Cleaning, Windows 11 License, Cisco Switch..."
-                  value={newExpense.title}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    const autoCat = detectExpenseCategory(val);
-                    const autoPrice = estimateMarketPrice(val);
-                    setNewExpense(prev => ({
-                      ...prev,
-                      title: val,
-                      category: autoCat,
-                      amount: prev.isManualAmount ? prev.amount : autoPrice
-                    }));
-                  }}
-                  className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none focus:border-emerald-600 font-bold"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block mb-1">Auto-Detected Category</label>
-                  <select
-                    value={newExpense.category}
-                    onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value as any })}
-                    className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none font-black text-emerald-800"
-                  >
-                    <option value="MAINTENANCE">MAINTENANCE</option>
-                    <option value="SOFTWARE">SOFTWARE</option>
-                    <option value="INFRASTRUCTURE">INFRASTRUCTURE</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block mb-1">Amount (PHP ₱ — Auto or Edit)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    placeholder="Auto-calculated"
-                    value={newExpense.amount || ''}
-                    onChange={(e) =>
-                      setNewExpense({
-                        ...newExpense,
-                        amount: Number(e.target.value) || 0,
-                        isManualAmount: true
-                      })
-                    }
-                    className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-300 rounded-xl font-mono font-black outline-none focus:border-emerald-600"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block mb-1">Assigned Laboratory</label>
-                <input
-                  type="text"
+                <label className="block mb-1">Laboratory Location (Select or Type New)</label>
+                <input 
+                  type="text" 
                   list="lab-location-options"
-                  value={newExpense.lab}
-                  onChange={(e) => setNewExpense({ ...newExpense, lab: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none"
+                  placeholder="e.g. ComLab 1, ComLab 3, Multimedia Lab, Robotics Lab"
+                  value={newItem.lab}
+                  onChange={(e) => setNewItem({ ...newItem, lab: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-600 font-bold"
+                  required
+                />
+                <datalist id="lab-location-options">
+                  <option value="ComLab 1" />
+                  <option value="ComLab 2" />
+                  <option value="ComLab 3" />
+                  <option value="Server Room" />
+                  <option value="Multimedia Lab" />
+                  <option value="Engineering Lab" />
+                  <option value="Robotics Lab" />
+                  <option value="Data Science Lab" />
+                </datalist>
+              </div>
+
+              <div>
+                <label className="block mb-1">Hardware / Equipment Name</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. iPhone 16 Pro Max, Samsung S24 Ultra, RTX 4070, 27&quot; 144Hz Monitor"
+                  value={newItem.name}
+                  onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-600"
                   required
                 />
               </div>
 
-              {/* AUTO-DETECTED FINANCIAL VALUATION PREVIEW BOX */}
-              <div className="bg-emerald-50 p-3.5 rounded-2xl border-2 border-emerald-200 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono font-black uppercase tracking-wider flex items-center gap-1.5 text-emerald-800">
-                    <Zap className="w-3.5 h-3.5 text-emerald-600" /> Auto-Detected Rate &amp; Category
+              <div>
+                <label className="block mb-1">Diagnostic Failure / Issue</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Burned PCB, Water Damage, LCD Fracture"
+                  value={newItem.issue}
+                  onChange={(e) => setNewItem({ ...newItem, issue: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-600"
+                />
+              </div>
+
+              {/* AUTOMATED AI MARKET PRICE VALUATION DISPLAY BOX */}
+              <div className="bg-blue-50/70 p-3.5 rounded-2xl border border-blue-100 space-y-1">
+                <div className="flex items-center justify-between text-slate-700">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider flex items-center gap-1.5 text-blue-700">
+                    <Zap className="w-3.5 h-3.5 text-blue-600" /> Auto Market Price Valuation
                   </span>
-                  <span className="text-[9px] font-mono font-bold bg-emerald-200 text-emerald-950 px-2 py-0.5 rounded-full">
-                    {newExpense.category}
+                  <span className="text-[10px] font-mono font-bold bg-blue-200/60 text-blue-800 px-2 py-0.5 rounded-full">
+                    Verified Rate
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between pt-1">
-                  <span className="text-[11px] text-slate-600">Verified Expense Amount:</span>
-                  <span className="text-lg font-black text-emerald-900 font-mono">
-                    ₱{(newExpense.amount || (newExpense.title ? estimateMarketPrice(newExpense.title) : 0)).toLocaleString()}
+                  <span className="text-[11px] text-slate-500 font-medium">Estimated Replacement Cost:</span>
+                  <span className="text-base font-black text-blue-900 font-mono">
+                    ₱{newItem.name ? estimateMarketPrice(newItem.name).toLocaleString() : '0'}
                   </span>
                 </div>
+                <p className="text-[10px] text-slate-400 font-sans italic pt-0.5">
+                  Automated pricing cross-referenced against official Philippine retail computer market values.
+                </p>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2 pt-2 border-t">
                 <button
                   type="button"
-                  onClick={() => setIsAddExpenseOpen(false)}
-                  className="px-4 py-2 bg-slate-100 rounded-xl font-black cursor-pointer"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition cursor-pointer"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl shadow-[0_4px_0_#064e3b] cursor-pointer"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl shadow-md transition cursor-pointer active:scale-95"
                 >
-                  Record Expense
+                  Save Record
                 </button>
               </div>
             </form>
@@ -2410,165 +992,10 @@ export const AnalyticsReportsView: React.FC<AnalyticsReportsViewProps> = ({
         </div>
       )}
 
-      {/* MODAL 4: ADJUST TOTAL ALLOCATED BUDGET */}
-      {isEditBudgetOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-[0_12px_0_#1e3a8a,0_25px_50px_rgba(0,0,0,0.5)] space-y-4 border-2 border-blue-400">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <Wallet className="w-5 h-5 text-blue-600" />
-                <span>Set Allocated Lab Budget</span>
-              </h4>
-              <button
-                type="button"
-                onClick={() => setIsEditBudgetOpen(false)}
-                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdateBudget} className="space-y-4 text-xs font-bold text-slate-700">
-              <div>
-                <label className="block mb-1">Total Institutional Allocated Budget (PHP ₱)</label>
-                <input
-                  type="number"
-                  min={1000}
-                  step="500"
-                  value={budgetInput}
-                  onChange={(e) => setBudgetInput(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-300 rounded-xl font-mono text-base font-black text-blue-900 outline-none focus:border-blue-600"
-                  required
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsEditBudgetOpen(false)}
-                  className="px-4 py-2 bg-slate-100 rounded-xl font-black cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-3d-bevel px-5 py-2 bg-blue-600 text-white rounded-xl font-black cursor-pointer"
-                >
-                  Save Budget
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 5: EDIT LAB TELEMETRY PARAMETERS */}
-      {editingLabRecord && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-[0_12px_0_#1e3a8a,0_25px_50px_rgba(0,0,0,0.5)] space-y-4 border-2 border-blue-400">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <Laptop className="w-5 h-5 text-blue-600" />
-                <span>Update Lab Telemetry ({editingLabRecord.labName})</span>
-              </h4>
-              <button
-                type="button"
-                onClick={() => setEditingLabRecord(null)}
-                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveLabEdit} className="space-y-3 text-xs font-bold text-slate-700">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block mb-1">Active Workstations</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={editingLabRecord.totalPCs}
-                    value={editingLabRecord.activePCs}
-                    onChange={(e) =>
-                      setEditingLabRecord({ ...editingLabRecord, activePCs: Number(e.target.value) || 0 })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl font-mono font-black"
-                  />
-                </div>
-                <div>
-                  <label className="block mb-1">Total PCs Capacity</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={editingLabRecord.totalPCs}
-                    onChange={(e) =>
-                      setEditingLabRecord({ ...editingLabRecord, totalPCs: Number(e.target.value) || 1 })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl font-mono font-black"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block mb-1">Avg CPU %</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={editingLabRecord.cpuAvgPct}
-                    onChange={(e) =>
-                      setEditingLabRecord({ ...editingLabRecord, cpuAvgPct: Number(e.target.value) || 0 })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl font-mono font-black"
-                  />
-                </div>
-                <div>
-                  <label className="block mb-1">Avg RAM %</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={editingLabRecord.ramAvgPct}
-                    onChange={(e) =>
-                      setEditingLabRecord({ ...editingLabRecord, ramAvgPct: Number(e.target.value) || 0 })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl font-mono font-black"
-                  />
-                </div>
-                <div>
-                  <label className="block mb-1">Open Tickets</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={editingLabRecord.openTickets}
-                    onChange={(e) =>
-                      setEditingLabRecord({ ...editingLabRecord, openTickets: Number(e.target.value) || 0 })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl font-mono font-black"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingLabRecord(null)}
-                  className="px-4 py-2 bg-slate-100 rounded-xl font-black cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-3d-bevel px-5 py-2 bg-blue-600 text-white rounded-xl font-black cursor-pointer"
-                >
-                  Save Telemetry
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export const FinancialReportsView = AnalyticsReportsView;
-export default AnalyticsReportsView;
+export default FinancialReportsView;
+
+
