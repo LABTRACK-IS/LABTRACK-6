@@ -1,44 +1,177 @@
-﻿# LabTrack - Laboratory Tracking System
+﻿# Release Manifest - LabTrack v6.0.0
 
-Comprehensive laboratory tracking system for JRMSU Dapitan with multi-device support.
+**Release ID:** `202611211937`
+**Release date:** 2026-11-21
+**Baseline:** labtrack 5
+**Classification:** Production Release
 
-## Tech Stack
+---
 
-**Backend**
-- .NET 8 / ASP.NET Core - 22 controllers, 90+ REST endpoints
-- PostgreSQL - primary database
-- Entity Framework Core - ORM with soft delete
-- Python FastAPI - AI microservice
+## Executive summary
 
-**Frontend**
-- React 18 + Vite + TypeScript
-- TailwindCSS
-- React Router
+LabTrack v6.0.0 has been built, packaged, and is ready for deployment.
+This manifest provides release metadata, component inventory, and deployment instructions for operations and QA.
 
-## Features
+## Release contents
 
-**Admin Portal (15 modules)**
-Dashboard, Campuses, Assets, QR Management, Issues, Inventory,
-Sessions, Financials, Analytics, Users, Notifications, AI, Audit, Profile
+| Component              | Count     |
+|------------------------|-----------|
+| Controllers            | 29         |
+| Application services   | 17         |
+| Domain entities        | 32         |
+| Repositories           | 17         |
+| EF Core migrations     | 10         |
+| Admin UI modules       | 18         |
+| Instructor UI modules  | 11         |
+| Python FastAPI routes  | 7         |
+| Total C# files         | 459       |
+| Total TS/TSX files     | 73        |
 
-**Instructor Portal (10 modules)**
-Dashboard, Reservations, Lab Availability, Student Sessions,
-Problem Reporting, My Requests, Analytics, Notifications, AI, Profile
+## What is new in v6.0.0
 
-**Student Portal**
-QR-based PC scanning (no login required), auto-session, problem reporting
+Compared to labtrack 5:
 
-## Cross-Device Support
+- Backend changes: 0 modified, 0 added
+- Frontend changes: 25 modified, 1 added
 
-- LAN access: http://192.168.x.x:3000
-- Public access via Cloudflare tunnel
-- Mobile-ready (iOS, Android)
-- Dynamic QR host detection
+## Component inventory
 
-## Quick Start
+### Controllers
 
-### Backend
-```
-cd backend/LabTrack.CSharp/src/LabTrack.Api
-dotnet run
-```
+- AiAssistant
+- Analytics
+- Asset
+- Audit
+- Auth
+- ChainOfCustody
+- Communication
+- Financial
+- IdempotencyRecords
+- InstructorCommunication
+- Laboratories
+- Maintenance
+- MaintenanceRecord
+- MaintenanceRecords
+- Network
+- NetworkIncident
+- NetworkInfo
+- Notification
+- PcUsage
+- ProblemReport
+- Qr
+- QrAdmin
+- QrSession
+- RepairTicket
+- Replacement
+- ReplacementRecord
+- Reservation
+- Users
+- Workstations
+
+### Application services
+
+- AiAssistant
+- Analytics
+- Asset
+- Audit
+- Auth
+- Communication
+- Financial
+- Maintenance
+- Network
+- Notification
+- PcUsage
+- ProblemReport
+- Qr
+- RepairTicket
+- Replacement
+- Reservation
+- User
+
+### Domain entities
+
+- AiChatMessage
+- AiChatSession
+- Asset
+- AuditLog
+- AuthSession
+- ChainOfCustodyEvent
+- Communication
+- ComponentReplacement
+- DamageAttribution
+- FinancialExpense
+- FinancialRecord
+- IdempotencyKey
+- InstructorCommunication
+- Laboratory
+- MaintenanceRecord
+- MaintenanceSchedule
+- NetworkDevice
+- NetworkIncident
+- Notification
+- PcTelemetryEvent
+- PcUsageLog
+- ProblemReport
+- QrCode
+- QrSession
+- RefreshToken
+- RepairTicket
+- ReplacementRecord
+- ReplacementRequest
+- Reservation
+- User
+- Workstation
+- WorkstationSession
+
+## System requirements
+
+| Requirement   | Minimum           |
+|---------------|-------------------|
+| .NET runtime  | 8.0               |
+| Node.js       | 18.x or higher    |
+| PostgreSQL    | 14.x or higher    |
+| Python        | 3.10 or higher    |
+| RAM           | 4 GB              |
+| Disk          | 2 GB free         |
+
+## Deployment
+
+### 1. Backend API
+
+    cd backend/LabTrack.CSharp/src/LabTrack.Api
+    dotnet restore
+    dotnet build -c Release
+    dotnet run
+
+### 2. Frontend SPA
+
+    cd frontend
+    npm ci
+    npm run build
+    npm run dev
+
+### 3. Python AI service (optional)
+
+    cd backend/LabTrack.Python
+    pip install -r requirements.txt
+    uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+## Service endpoints
+
+| Service   | URL                              |
+|-----------|----------------------------------|
+| SPA       | http://localhost:3000            |
+| API       | http://localhost:5000            |
+| Swagger   | http://localhost:5000/swagger    |
+| Health    | http://localhost:5000/health/live|
+| AI        | http://localhost:8000            |
+
+## Support
+
+- Organization: LABTRACK-IS
+- Repository: LABTRACK-6
+- Issue tracker: GitHub Issues
+
+---
+
+Manifest issued 2026-11-21 19:37:24 (c) 2026 LABTRACK-IS
